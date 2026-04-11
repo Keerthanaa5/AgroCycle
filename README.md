@@ -44,7 +44,7 @@ Farmers burn waste → environmental pollution
 Lack of alternative markets for damaged crops
 Limited awareness of sustainable practices
 
-✅ Solution
+Solution
 
 AgroCycle provides:
 

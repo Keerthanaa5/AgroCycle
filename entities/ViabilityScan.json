@@ -1,0 +1,46 @@
+{
+  "name": "ViabilityScan",
+  "type": "object",
+  "properties": {
+    "crop_type": {
+      "type": "string"
+    },
+    "image_url": {
+      "type": "string"
+    },
+    "usable_percentage": {
+      "type": "number"
+    },
+    "damage_level": {
+      "type": "string",
+      "enum": [
+        "low",
+        "medium",
+        "high",
+        "critical"
+      ]
+    },
+    "ai_analysis": {
+      "type": "string",
+      "description": "AI generated analysis report"
+    },
+    "recommended_action": {
+      "type": "string",
+      "enum": [
+        "sell",
+        "feed_cattle",
+        "silage",
+        "compost",
+        "insurance_claim",
+        "intercrop"
+      ]
+    },
+    "farmer_name": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "crop_type",
+    "image_url"
+  ]
+}

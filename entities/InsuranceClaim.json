@@ -1,0 +1,76 @@
+{
+  "name": "InsuranceClaim",
+  "type": "object",
+  "properties": {
+    "farmer_name": {
+      "type": "string"
+    },
+    "mobile_number": {
+      "type": "string",
+      "description": "Mobile number for insurance"
+    },
+    "aadhar_number": {
+      "type": "string",
+      "description": "Aadhar card number"
+    },
+    "date_of_birth": {
+      "type": "string",
+      "description": "Date of birth"
+    },
+    "crop_type": {
+      "type": "string"
+    },
+    "damage_type": {
+      "type": "string",
+      "enum": [
+        "flood",
+        "drought",
+        "pest",
+        "disease",
+        "hailstorm",
+        "other"
+      ]
+    },
+    "damage_percentage": {
+      "type": "number"
+    },
+    "damage_image_url": {
+      "type": "string"
+    },
+    "location": {
+      "type": "string"
+    },
+    "area_acres": {
+      "type": "number"
+    },
+    "estimated_loss_inr": {
+      "type": "number"
+    },
+    "claim_amount_inr": {
+      "type": "number"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "draft",
+        "submitted",
+        "under_review",
+        "approved",
+        "rejected"
+      ],
+      "default": "draft"
+    },
+    "ai_report": {
+      "type": "string",
+      "description": "AI generated damage report"
+    }
+  },
+  "required": [
+    "farmer_name",
+    "mobile_number",
+    "aadhar_number",
+    "date_of_birth",
+    "crop_type",
+    "damage_type"
+  ]
+}

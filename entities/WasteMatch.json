@@ -1,0 +1,68 @@
+{
+  "name": "WasteMatch",
+  "type": "object",
+  "properties": {
+    "crop_type": {
+      "type": "string",
+      "description": "Type of damaged crop"
+    },
+    "quantity_kg": {
+      "type": "number",
+      "description": "Quantity available in kg"
+    },
+    "condition": {
+      "type": "string",
+      "enum": [
+        "slightly_damaged",
+        "damaged",
+        "heavily_damaged"
+      ]
+    },
+    "image_url": {
+      "type": "string",
+      "description": "Photo of the crop"
+    },
+    "location": {
+      "type": "string"
+    },
+    "asking_price": {
+      "type": "number",
+      "description": "Asking price per kg"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "listed",
+        "matched",
+        "sold"
+      ],
+      "default": "listed"
+    },
+    "matched_buyer": {
+      "type": "string",
+      "description": "Matched buyer name"
+    },
+    "buyer_type": {
+      "type": "string",
+      "enum": [
+        "hotel",
+        "industry",
+        "local_buyer",
+        "food_processing"
+      ],
+      "description": "Type of buyer matched"
+    },
+    "farmer_name": {
+      "type": "string"
+    },
+    "contact_phone": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "crop_type",
+    "quantity_kg",
+    "condition",
+    "location"
+  ]
+}

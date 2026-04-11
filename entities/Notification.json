@@ -1,0 +1,41 @@
+{
+  "name": "Notification",
+  "type": "object",
+  "properties": {
+    "type": {
+      "type": "string",
+      "enum": [
+        "buyer_match",
+        "fodder_request",
+        "claim_update",
+        "community_post",
+        "silage_confirmed"
+      ],
+      "description": "Type of notification"
+    },
+    "title": {
+      "type": "string"
+    },
+    "message": {
+      "type": "string"
+    },
+    "is_read": {
+      "type": "boolean",
+      "default": false
+    },
+    "link": {
+      "type": "string",
+      "description": "Route path to navigate to"
+    },
+    "recipient_email": {
+      "type": "string",
+      "description": "Email of user to notify"
+    }
+  },
+  "required": [
+    "type",
+    "title",
+    "message",
+    "recipient_email"
+  ]
+}

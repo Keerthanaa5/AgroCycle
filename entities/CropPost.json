@@ -1,0 +1,72 @@
+{
+  "name": "CropPost",
+  "type": "object",
+  "properties": {
+    "title": {
+      "type": "string",
+      "description": "Title of the crop waste post"
+    },
+    "crop_type": {
+      "type": "string",
+      "description": "Type of crop waste"
+    },
+    "quantity_kg": {
+      "type": "number",
+      "description": "Quantity in kg"
+    },
+    "condition": {
+      "type": "string",
+      "enum": [
+        "fresh",
+        "slightly_damaged",
+        "damaged",
+        "weeds"
+      ],
+      "description": "Condition of the crop waste"
+    },
+    "location": {
+      "type": "string",
+      "description": "Location of the farmer"
+    },
+    "image_url": {
+      "type": "string",
+      "description": "Photo of the crop waste"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "available",
+        "reserved",
+        "exchanged"
+      ],
+      "default": "available"
+    },
+    "post_type": {
+      "type": "string",
+      "enum": [
+        "offering_waste",
+        "requesting_fodder"
+      ],
+      "description": "Whether offering waste or requesting fodder"
+    },
+    "contact_phone": {
+      "type": "string",
+      "description": "Contact phone number"
+    },
+    "farmer_name": {
+      "type": "string"
+    },
+    "rating": {
+      "type": "number",
+      "description": "Average rating"
+    }
+  },
+  "required": [
+    "title",
+    "crop_type",
+    "quantity_kg",
+    "condition",
+    "location",
+    "post_type"
+  ]
+}

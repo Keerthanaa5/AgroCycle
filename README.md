@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 **Welcome to your Base44 project** 
 
 **About**
@@ -37,3 +38,6 @@ Open [Base44.com](http://Base44.com) and click on Publish.
 Documentation: [https://docs.base44.com/Integrations/Using-GitHub](https://docs.base44.com/Integrations/Using-GitHub)
 
 Support: [https://app.base44.com/support](https://app.base44.com/support)
+=======
+# AgroCycle
+>>>>>>> 4b368630bd1d05f29f413ba20fa37adaa9986455

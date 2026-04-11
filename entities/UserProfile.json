@@ -1,0 +1,63 @@
+{
+  "name": "UserProfile",
+  "type": "object",
+  "properties": {
+    "display_name": {
+      "type": "string"
+    },
+    "user_type": {
+      "type": "string",
+      "enum": [
+        "farmer",
+        "cattle_owner",
+        "buyer",
+        "transporter"
+      ],
+      "description": "Type of user"
+    },
+    "phone": {
+      "type": "string"
+    },
+    "location": {
+      "type": "string"
+    },
+    "language": {
+      "type": "string",
+      "enum": [
+        "english",
+        "telugu",
+        "hindi",
+        "marathi",
+        "kannada"
+      ],
+      "default": "english"
+    },
+    "aadhar_number": {
+      "type": "string"
+    },
+    "date_of_birth": {
+      "type": "string"
+    },
+    "total_carbon_credits": {
+      "type": "number",
+      "default": 0
+    },
+    "total_earnings_inr": {
+      "type": "number",
+      "default": 0
+    },
+    "rating": {
+      "type": "number",
+      "default": 0
+    },
+    "total_exchanges": {
+      "type": "number",
+      "default": 0
+    }
+  },
+  "required": [
+    "display_name",
+    "user_type",
+    "language"
+  ]
+}

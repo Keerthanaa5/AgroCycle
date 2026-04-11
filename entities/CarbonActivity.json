@@ -1,0 +1,56 @@
+{
+  "name": "CarbonActivity",
+  "type": "object",
+  "properties": {
+    "activity_type": {
+      "type": "string",
+      "enum": [
+        "composting",
+        "no_burn",
+        "organic_farming",
+        "water_conservation",
+        "tree_planting"
+      ],
+      "description": "Type of eco activity"
+    },
+    "description": {
+      "type": "string"
+    },
+    "area_acres": {
+      "type": "number",
+      "description": "Area in acres"
+    },
+    "co2_saved_kg": {
+      "type": "number",
+      "description": "Estimated CO2 saved in kg"
+    },
+    "credits_earned": {
+      "type": "number",
+      "description": "Carbon credits earned"
+    },
+    "credit_value_inr": {
+      "type": "number",
+      "description": "Value in INR"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "pending",
+        "verified",
+        "credited",
+        "sold"
+      ],
+      "default": "pending"
+    },
+    "proof_image_url": {
+      "type": "string"
+    },
+    "farmer_name": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "activity_type",
+    "area_acres"
+  ]
+}

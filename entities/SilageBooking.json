@@ -1,0 +1,52 @@
+{
+  "name": "SilageBooking",
+  "type": "object",
+  "properties": {
+    "crop_type": {
+      "type": "string"
+    },
+    "quantity_kg": {
+      "type": "number"
+    },
+    "center_name": {
+      "type": "string"
+    },
+    "center_location": {
+      "type": "string"
+    },
+    "pickup_date": {
+      "type": "string",
+      "description": "Requested pickup date"
+    },
+    "price_per_kg": {
+      "type": "number"
+    },
+    "total_price": {
+      "type": "number"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "requested",
+        "confirmed",
+        "picked_up",
+        "processed"
+      ],
+      "default": "requested"
+    },
+    "farmer_name": {
+      "type": "string"
+    },
+    "location": {
+      "type": "string"
+    },
+    "contact_phone": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "crop_type",
+    "quantity_kg",
+    "location"
+  ]
+}

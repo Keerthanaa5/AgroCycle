@@ -19,6 +19,7 @@ import claimRoutes from './routes/claimRoutes.js';
 import agroconnectRoutes from './routes/agroconnectRoutes.js';
 import notificationRoutes from './routes/notificationRoutes.js';
 import syncRoutes from './routes/syncRoutes.js';
+import logisticsRoutes from './routes/logisticsRoutes.js';
 
 const app = express();
 
@@ -62,19 +63,24 @@ app.use(requestLogger);
 app.use(express.json({ limit: config.bodyLimit }));
 app.use(express.urlencoded({ extended: true, limit: config.bodyLimit }));
 
-// 5. Mount API Routes under /api/v1
-app.use('/api/v1', healthRoutes);
-app.use('/api/v1', userRoutes);
-app.use('/api/v1', locationRoutes);
-app.use('/api/v1', assessmentRoutes);
-app.use('/api/v1', marketplaceRoutes);
-app.use('/api/v1', buyerRoutes);
-app.use('/api/v1', silageRoutes);
-app.use('/api/v1', carbonRoutes);
-app.use('/api/v1', claimRoutes);
-app.use('/api/v1', agroconnectRoutes);
-app.use('/api/v1', notificationRoutes);
-app.use('/api/v1', syncRoutes);
+// 5. Mount API Routes under both /api and /api/v1 for universal client compatibility
+const apiRouter = express.Router();
+apiRouter.use(healthRoutes);
+apiRouter.use(userRoutes);
+apiRouter.use(locationRoutes);
+apiRouter.use(assessmentRoutes);
+apiRouter.use(marketplaceRoutes);
+apiRouter.use(buyerRoutes);
+apiRouter.use(silageRoutes);
+apiRouter.use(carbonRoutes);
+apiRouter.use(claimRoutes);
+apiRouter.use(agroconnectRoutes);
+apiRouter.use(notificationRoutes);
+apiRouter.use(syncRoutes);
+apiRouter.use(logisticsRoutes);
+
+app.use('/api/v1', apiRouter);
+app.use('/api', apiRouter);
 
 // 6. 404 Catch-All Handler
 app.use(notFoundHandler);

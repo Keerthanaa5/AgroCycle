@@ -1,6 +1,7 @@
 import app from './app.js';
 import { config } from './config/env.js';
 import { closePool } from './db/pool.js';
+import { initSocket } from './realtime/socketManager.js';
 
 const PORT = config.port;
 
@@ -8,6 +9,12 @@ const server = app.listen(PORT, '0.0.0.0', () => {
   console.log(`[AgroCycle Backend] Server running in ${config.nodeEnv} mode on port ${PORT}`);
   console.log(`[AgroCycle Backend] Health endpoint: http://localhost:${PORT}/api/v1/health`);
   console.log(`[AgroCycle Backend] DB Health endpoint: http://localhost:${PORT}/api/v1/health/db`);
+});
+
+// Initialize Real-Time Socket.IO on the active HTTP server
+initSocket(server, {
+  origin: config.corsOrigins,
+  methods: ['GET', 'POST', 'PATCH']
 });
 
 // Graceful shutdown handling

@@ -7,7 +7,9 @@
 
 export const ROLES = {
   FARMER: "farmer",
-  BUYER: "buyer"
+  BUYER: "buyer",
+  DRIVER: "driver",
+  ADMIN: "admin"
 };
 
 export const BUYER_BUSINESS_TYPES = [
@@ -62,6 +64,24 @@ export function isBuyer(user) {
 }
 
 /**
+ * Check if the user is a Driver
+ * @param {Object|null} user
+ * @returns {boolean}
+ */
+export function isDriver(user) {
+  return hasRole(user, ROLES.DRIVER);
+}
+
+/**
+ * Check if the user is an Admin
+ * @param {Object|null} user
+ * @returns {boolean}
+ */
+export function isAdmin(user) {
+  return hasRole(user, ROLES.ADMIN);
+}
+
+/**
  * Check if the user has both Farmer and Buyer roles
  * @param {Object|null} user
  * @returns {boolean}
@@ -105,6 +125,24 @@ export function isActiveFarmer(user) {
  */
 export function isActiveBuyer(user) {
   return getActiveRole(user) === ROLES.BUYER;
+}
+
+/**
+ * Check if user is currently operating in active Driver mode
+ * @param {Object|null} user
+ * @returns {boolean}
+ */
+export function isActiveDriver(user) {
+  return getActiveRole(user) === ROLES.DRIVER;
+}
+
+/**
+ * Check if user is currently operating in active Admin mode
+ * @param {Object|null} user
+ * @returns {boolean}
+ */
+export function isActiveAdmin(user) {
+  return getActiveRole(user) === ROLES.ADMIN;
 }
 
 /**
@@ -365,8 +403,11 @@ export function getListingWhatsAppUrl(listing, user) {
  */
 export function formatRoleName(role) {
   if (!role) return "User";
-  if (role.toLowerCase() === ROLES.FARMER) return "Farmer";
-  if (role.toLowerCase() === ROLES.BUYER) return "Buyer";
+  const r = role.toLowerCase();
+  if (r === ROLES.FARMER) return "Farmer";
+  if (r === ROLES.BUYER) return "Buyer";
+  if (r === ROLES.DRIVER) return "Driver";
+  if (r === ROLES.ADMIN) return "Admin";
   return role.charAt(0).toUpperCase() + role.slice(1);
 }
 

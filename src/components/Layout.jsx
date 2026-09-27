@@ -3,7 +3,7 @@ import { useState, useEffect } from "react";
 import { 
   LayoutDashboard, Users, ShoppingCart, Leaf, ScanLine, 
   Warehouse, FileCheck, Sprout, Bot, User, Menu, X, LogOut,
-  Shield, ArrowLeftRight, CheckCircle2, WifiOff, Wifi, RefreshCw, AlertCircle, TrendingUp
+  Shield, ArrowLeftRight, CheckCircle2, WifiOff, Wifi, RefreshCw, AlertCircle, TrendingUp, Truck
 } from "lucide-react";
 import { useAuth } from "@/lib/AuthContext";
 import { useOnlineStatus } from "@/hooks/useOnlineStatus";
@@ -79,6 +79,7 @@ export default function Layout() {
   const farmerNavItems = [
     { path: "/", label: t("navigation.dashboard"), icon: LayoutDashboard },
     { path: "/viability-scanner", label: t("navigation.viabilityScanner"), icon: ScanLine },
+    { path: "/smart-logistics", label: t("navigation.smartLogistics") || "Smart Logistics", icon: Truck },
     { path: "/market-intelligence", label: t("navigation.marketIntelligence") || "Market Intelligence", icon: TrendingUp },
     { path: "/claim-rocket", label: t("navigation.claimRocket"), icon: FileCheck },
     { path: "/agro-connect", label: t("navigation.agroConnect"), icon: Users },
@@ -92,6 +93,7 @@ export default function Layout() {
 
   const buyerNavItems = [
     { path: "/", label: t("navigation.buyerDashboard"), icon: LayoutDashboard },
+    { path: "/smart-logistics", label: t("navigation.smartLogistics") || "Smart Logistics", icon: Truck },
     { path: "/market-intelligence", label: t("navigation.marketIntelligence") || "Market Intelligence", icon: TrendingUp },
     { path: "/waste-market", label: t("navigation.wasteMarket"), icon: ShoppingCart },
     { path: "/silage-bank", label: t("navigation.silageBank"), icon: Warehouse },

@@ -77,6 +77,7 @@ export default {
     dashboard: "डैशबोर्ड",
     buyerDashboard: "क्रेता डैशबोर्ड",
     viabilityScanner: "फसल स्कैनर",
+    smartLogistics: "स्मार्ट लॉजिस्टिक्स और समेकन",
     marketIntelligence: "बाजार आसूचना (Market Intel)",
     claimRocket: "फसल बीमा (PMFBY)",
     agroConnect: "किसान समुदाय",

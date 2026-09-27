@@ -77,6 +77,7 @@ export default {
     dashboard: "Dashboard",
     buyerDashboard: "Buyer Dashboard",
     viabilityScanner: "Viability Scanner",
+    smartLogistics: "Smart Logistics",
     marketIntelligence: "Market Intelligence",
     claimRocket: "Claim Rocket",
     agroConnect: "AgroConnect",

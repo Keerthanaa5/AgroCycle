@@ -11,10 +11,12 @@ import { Plus, MapPin, Package, Upload, Loader2, Users, Search, HelpCircle, Ligh
 import CropPostCard from "../components/agro/CropPostCard";
 import { localDB, KEYS } from "@/services/localDB";
 import VerifiedBadge from "@/components/VerifiedBadge";
+import ConnectionStatusBadge from "@/components/ConnectionStatusBadge";
 import { enqueueAction, ACTION_TYPES } from "@/services/syncQueue";
 import { syncManager } from "@/services/syncManager";
 import { getAssessmentHandoff, clearAssessmentHandoff } from "@/services/assessmentHandoffService";
 import { storageService } from "@/services/storageService";
+import { realtimeSocketClient } from "@/services/realtimeSocketClient";
 
 function FarmerPostCreation({
   dialogOpen,
@@ -383,28 +385,54 @@ export default function AgroConnect() {
 
   useEffect(() => { 
     loadPosts(); 
-    const unsub = syncManager.subscribe((event) => {
+
+    // 1. Real-time agroconnect:created
+    const unsubCreated = realtimeSocketClient.on('agroconnect:created', (newPost) => {
+      console.log('[AgroConnect Socket] Received agroconnect:created:', newPost);
+      setPosts(prev => {
+        const normalized = normalizeAgroPost(newPost);
+        const exists = prev.some(p => String(p.id) === String(normalized.id));
+        if (exists) {
+          return prev.map(p => String(p.id) === String(normalized.id) ? { ...p, ...normalized } : p);
+        }
+        return [normalized, ...prev];
+      });
+    });
+
+    // 2. Real-time agroconnect:updated
+    const unsubUpdated = realtimeSocketClient.on('agroconnect:updated', (updatedPost) => {
+      console.log('[AgroConnect Socket] Received agroconnect:updated:', updatedPost);
+      setPosts(prev => {
+        const normalized = normalizeAgroPost(updatedPost);
+        return prev.map(p => String(p.id) === String(normalized.id) ? { ...p, ...normalized } : p);
+      });
+    });
+
+    // 3. Real-time agroconnect:deleted
+    const unsubDeleted = realtimeSocketClient.on('agroconnect:deleted', (data) => {
+      console.log('[AgroConnect Socket] Received agroconnect:deleted:', data);
+      const targetId = String(data?.id || data);
+      setPosts(prev => prev.filter(p => String(p.id) !== targetId));
+    });
+
+    // 4. Sync queue subscription
+    const unsubSync = syncManager.subscribe((event) => {
       if (event.type === "ACTION_SYNCED" || event.type === "SYNC_COMPLETE") {
         loadPosts();
       }
     });
-    return () => unsub();
+
+    return () => {
+      unsubCreated();
+      unsubUpdated();
+      unsubDeleted();
+      unsubSync();
+    };
   }, [user]);
 
-  async function loadPosts() {
-    setLoading(true);
-    let existing = [];
-    try {
-      existing = await localDB.async.getData(KEYS.AGRO);
-    } catch (e) {
-      existing = localDB.getData(KEYS.AGRO);
-    }
-    if (!existing || existing.length === 0) {
-      existing = localDB.getData(KEYS.AGRO);
-    }
-
-    let data = (existing || []).map(p => ({
-      id: p.id,
+  function normalizeAgroPost(p) {
+    return {
+      id: String(p.id),
       creatorId: p.creatorId || p.creator_id || null,
       creatorRole: p.creatorRole || p.creator_role || "farmer",
       creatorVerificationStatus: p.creatorVerificationStatus || "verified",
@@ -421,17 +449,49 @@ export default function AgroConnect() {
       image: p.image || p.image_url || null,
       created_date: p.date || p.created_at || new Date().toISOString(),
       status: p.status || "available",
-      sync_status: p.sync_status || null,
+      sync_status: p.sync_status || "synced",
       phone: p.creatorPhone || p.phone || p.contact_phone,
       interactions: Array.isArray(p.interactions) ? p.interactions : [],
       connections: Array.isArray(p.connections) ? p.connections : []
-    }));
+    };
+  }
 
-    setPosts(data);
+  async function loadPosts() {
+    setLoading(true);
+    let serverPosts = [];
+    const apiBase = (typeof import.meta !== 'undefined' && import.meta.env?.VITE_API_BASE_URL) || 'http://localhost:5000/api/v1';
+
+    try {
+      const response = await fetch(`${apiBase}/agroconnect?limit=100`, { cache: 'no-store' });
+      if (response.ok) {
+        const json = await response.json();
+        if (Array.isArray(json.data)) {
+          serverPosts = json.data.map(normalizeAgroPost);
+          localDB.saveData(KEYS.AGRO, serverPosts);
+          setPosts(serverPosts);
+          setLoading(false);
+          return;
+        }
+      }
+    } catch (e) {
+      console.warn('[AgroConnect] Backend fetch failed, falling back to local cache:', e);
+    }
+
+    let existing = [];
+    try {
+      existing = await localDB.async.getData(KEYS.AGRO);
+    } catch (e) {
+      existing = localDB.getData(KEYS.AGRO);
+    }
+    if (!existing || existing.length === 0) {
+      existing = localDB.getData(KEYS.AGRO);
+    }
+
+    setPosts((existing || []).map(normalizeAgroPost));
     setLoading(false);
   }
 
-  function handleSubmit(e) {
+  async function handleSubmit(e) {
     if (e) e.preventDefault();
     if (!canCreateListing(user)) {
       alert("Only registered Farmers can create new crop community posts.");
@@ -500,25 +560,39 @@ export default function AgroConnect() {
       description: form.description || postTitle,
       image: base64String,
       status: "available",
-      sync_status: "pending",
+      sync_status: "synced",
       interactions: [],
       connections: []
     };
 
-    localDB.addItem(KEYS.AGRO, newPost);
+    const apiBase = (typeof import.meta !== 'undefined' && import.meta.env?.VITE_API_BASE_URL) || 'http://localhost:5000/api/v1';
 
-    // Enqueue in offline sync queue
-    enqueueAction({
-      userId: currentUserId,
-      actionType: ACTION_TYPES.CREATE_AGROCONNECT_POST,
-      entityType: "agroConnectActivity",
-      entityId: newPost.id,
-      payload: newPost
-    }).then(() => {
-      if (syncManager.isOnline()) {
-        syncManager.processQueue(currentUserId).catch(() => {});
+    try {
+      const response = await fetch(`${apiBase}/agroconnect`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "X-User-Id": currentUserId },
+        body: JSON.stringify(newPost)
+      });
+      if (response.ok) {
+        const json = await response.json();
+        const saved = normalizeAgroPost(json.data || newPost);
+        localDB.addItem(KEYS.AGRO, saved);
+        setPosts(prev => [saved, ...prev.filter(p => String(p.id) !== String(saved.id))]);
+      } else {
+        throw new Error("Server rejected post");
       }
-    }).catch(err => console.warn("[AgroConnect] Enqueue sync error:", err));
+    } catch (e) {
+      newPost.sync_status = "pending";
+      localDB.addItem(KEYS.AGRO, newPost);
+      enqueueAction({
+        userId: currentUserId,
+        actionType: ACTION_TYPES.CREATE_AGROCONNECT_POST,
+        entityType: "agroConnectActivity",
+        entityId: newPost.id,
+        payload: newPost
+      });
+      setPosts(prev => [newPost, ...prev]);
+    }
 
     setDialogOpen(false);
     setImageFile(null);
@@ -533,20 +607,29 @@ export default function AgroConnect() {
       resource_needed: "",
       description: ""
     });
-    loadPosts();
   }
 
-  function handleDelete(id) {
+  async function handleDelete(id) {
     const item = posts.find(p => p.id === id);
     if (!isRecordOwner(item, user)) {
       alert("You can only remove posts that you created.");
       return;
     }
     if (confirm("Are you sure you want to remove this crop community post?")) {
+      const apiBase = (typeof import.meta !== 'undefined' && import.meta.env?.VITE_API_BASE_URL) || 'http://localhost:5000/api/v1';
+      const currentUserId = user?.userId || user?.id;
+      try {
+        await fetch(`${apiBase}/agroconnect/${id}?userId=${currentUserId}`, {
+          method: "DELETE",
+          headers: { "X-User-Id": currentUserId }
+        });
+      } catch (e) {}
+
       localDB.deleteItem(KEYS.AGRO, id);
-      loadPosts();
+      setPosts(prev => prev.filter(p => String(p.id) !== String(id)));
     }
   }
+
 
   async function handleInteract(postId, interactionData) {
     const post = posts.find(p => p.id === postId);
@@ -634,16 +717,18 @@ export default function AgroConnect() {
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <div className="flex items-center gap-2 mb-1">
+          <div className="flex items-center gap-2.5 mb-1 flex-wrap">
             <Users className="h-5 w-5 text-primary" />
             <h1 className="text-2xl sm:text-3xl font-bold text-foreground tracking-tight">
               {t("agroConnect.title", {}, "AgroConnect Crop Community")}
             </h1>
+            <ConnectionStatusBadge />
           </div>
           <p className="text-muted-foreground text-sm">
             {t("agroConnect.subtitle", {}, "Farmers helping farmers with crop-related knowledge, problems, resources, and crop waste")}
           </p>
         </div>
+
         <FarmerPostCreation
           dialogOpen={dialogOpen}
           setDialogOpen={setDialogOpen}

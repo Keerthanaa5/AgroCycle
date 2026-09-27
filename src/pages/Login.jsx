@@ -18,7 +18,9 @@ import {
   EyeOff,
   Sparkles,
   ArrowRight,
-  CheckCircle2
+  CheckCircle2,
+  Truck,
+  Shield
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useAuth, DEFAULT_DEMO_ACCOUNTS, getRegisteredAccounts } from "@/lib/AuthContext";
@@ -563,11 +565,13 @@ export default function Login() {
               {t("login.demoSignInTitle") || "Quick Demo Logins (Click to Log In):"}
             </span>
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2.5">
             {DEFAULT_DEMO_ACCOUNTS.map((demo) => {
-              const isDemoFarmer = demo.roles.includes(ROLES.FARMER) && !demo.roles.includes(ROLES.BUYER);
-              const isDemoBuyer = demo.roles.includes(ROLES.BUYER) && !demo.roles.includes(ROLES.FARMER);
-              const isDemoDual = demo.roles.length > 1;
+              const isDemoDriver = demo.roles.includes(ROLES.DRIVER) && !demo.roles.includes(ROLES.ADMIN);
+              const isDemoAdmin = demo.roles.includes(ROLES.ADMIN);
+              const isDemoFarmer = demo.roles.includes(ROLES.FARMER) && !demo.roles.includes(ROLES.BUYER) && !isDemoDriver && !isDemoAdmin;
+              const isDemoBuyer = demo.roles.includes(ROLES.BUYER) && !demo.roles.includes(ROLES.FARMER) && !isDemoDriver && !isDemoAdmin;
+              const isDemoDual = demo.roles.includes(ROLES.FARMER) && demo.roles.includes(ROLES.BUYER) && !isDemoAdmin;
 
               return (
                 <button
@@ -582,11 +586,13 @@ export default function Login() {
                         {isDemoFarmer && <Sprout className="h-3.5 w-3.5 text-primary shrink-0" />}
                         {isDemoBuyer && <ShoppingCart className="h-3.5 w-3.5 text-amber-600 shrink-0" />}
                         {isDemoDual && <UserCheck className="h-3.5 w-3.5 text-emerald-600 shrink-0" />}
+                        {isDemoDriver && <Truck className="h-3.5 w-3.5 text-purple-600 shrink-0" />}
+                        {isDemoAdmin && <Shield className="h-3.5 w-3.5 text-rose-600 shrink-0" />}
                         <span className="truncate">{demo.name}</span>
                       </span>
                     </div>
                     <p className="text-[11px] text-muted-foreground line-clamp-1">
-                      {isDemoFarmer ? demo.farmerProfile.primaryCrops : isDemoBuyer ? demo.buyerProfile.businessName : "Dual Operator"}
+                      {isDemoFarmer ? demo.farmerProfile?.primaryCrops : isDemoBuyer ? demo.buyerProfile?.businessName : isDemoDriver ? demo.driverProfile?.vehicleType : isDemoAdmin ? "System Administrator" : "Dual Operator"}
                     </p>
                     <p className="text-[10px] text-muted-foreground/80 mt-0.5">
                       Phone: <span className="font-mono">{demo.phone}</span>

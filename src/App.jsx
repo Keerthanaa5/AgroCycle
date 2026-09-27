@@ -17,6 +17,7 @@ import SilageBank from './pages/SilageBank';
 import ClaimRocket from './pages/ClaimRocket';
 import IntercropWizard from './pages/IntercropWizard';
 import MarketIntelligence from './pages/MarketIntelligence';
+import SmartLogistics from './pages/SmartLogistics';
 import AIAssistant from './pages/AIAssistant';
 import Profile from './pages/Profile';
 import Login from './pages/Login';
@@ -74,6 +75,7 @@ const AuthenticatedApp = () => {
 
         {/* Multi-Role Marketplace & Community Routes */}
         <Route path="/market-intelligence" element={<MarketIntelligence />} />
+        <Route path="/smart-logistics" element={<SmartLogistics />} />
         <Route path="/agro-connect" element={<AgroConnect />} />
         <Route path="/waste-market" element={<WasteMarket />} />
         <Route path="/carbon-cash" element={<CarbonCash />} />

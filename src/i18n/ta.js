@@ -77,6 +77,7 @@ export default {
     dashboard: "முகப்பு",
     buyerDashboard: "வாங்குபவர் முகப்பு",
     viabilityScanner: "பயிர் ஸ்கேனர்",
+    smartLogistics: "ஸ்மார்ட் சரக்கு & ஒருங்கிணைப்பு",
     marketIntelligence: "சந்தை நுண்ணறிவு (Market Intel)",
     claimRocket: "பயிர்க்காப்பீடு (PMFBY)",
     agroConnect: "விவசாயிகள் சமூகம்",

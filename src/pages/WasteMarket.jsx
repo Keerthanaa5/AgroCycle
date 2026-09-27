@@ -17,13 +17,14 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Plus, Store, MapPin, Loader2, Upload, Trash2, MessageCircle, Phone, Building2, ShoppingCart, Leaf, Sparkles, Check, RefreshCw, Eye, Edit3 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { motion } from "framer-motion";
-import { localDB, KEYS } from "@/services/localDB";
 import VerifiedBadge from "@/components/VerifiedBadge";
 import SyncStatusBadge from "@/components/SyncStatusBadge";
-import { enqueueAction, ACTION_TYPES } from "@/services/syncQueue";
+import ConnectionStatusBadge from "@/components/ConnectionStatusBadge";
 import { syncManager } from "@/services/syncManager";
 import { useLanguage } from "@/i18n";
 import { getAssessmentHandoff, consumeAssessmentHandoff } from "@/services/assessmentHandoffService";
+import { marketplaceService, normalizeListing } from "@/services/marketplaceService";
+import { realtimeSocketClient } from "@/services/realtimeSocketClient";
 
 const DEFAULT_WASTE_LISTINGS = [
   {
@@ -389,7 +390,7 @@ function PostCreationDialog({ dialogOpen, setDialogOpen, handleSubmit, form, set
 }
 
 function ListingsFeed({ loading, listings, handleDelete, handleView, handleEdit, statusColors }) {
-  const { user, isActiveFarmer: userIsActiveFarmer } = useAuth();
+  const { user } = useAuth();
   const { t } = useLanguage();
 
   if (loading) {
@@ -421,9 +422,13 @@ function ListingsFeed({ loading, listings, handleDelete, handleView, handleEdit,
           ? (item.buyerName || item.creatorName || "Commercial Buyer") 
           : (item.farmerName || item.creatorName || "Community Farmer");
 
+        const isPendingSync = item.sync_status === 'pending';
+
         return (
           <motion.div key={item.id || i} initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.04 }}
-            className="bg-card rounded-3xl border border-border/80 p-5 shadow-natural hover:shadow-natural-lg hover:border-primary/30 transition-all relative flex flex-col justify-between group"
+            className={`bg-card rounded-3xl border p-5 shadow-natural hover:shadow-natural-lg hover:border-primary/30 transition-all relative flex flex-col justify-between group ${
+              isPendingSync ? 'border-amber-300 dark:border-amber-700/50 bg-amber-50/20 dark:bg-amber-950/10' : 'border-border/80'
+            }`}
           >
             <div>
               {(() => {
@@ -455,6 +460,12 @@ function ListingsFeed({ loading, listings, handleDelete, handleView, handleEdit,
                     {item.source === "viability-scanner" && (
                       <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20">
                         ⚡ From Viability Assessment
+                      </span>
+                    )}
+
+                    {isPendingSync && (
+                      <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 border border-amber-300 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800">
+                        ⏳ Local Draft / Pending Sync
                       </span>
                     )}
                   </div>
@@ -587,6 +598,7 @@ export default function WasteMarket() {
   const [imageFile, setImageFile] = useState(null);
   const [uploadingImage, setUploadingImage] = useState(false);
   const [scannerHandoff, setScannerHandoff] = useState(null);
+  const [feedbackNotice, setFeedbackNotice] = useState(null);
   const [form, setForm] = useState({
     crop_type: "", quantity_kg: "", condition: "slightly_damaged",
     location: "", asking_price: "", sourceAssessmentId: null, source: null
@@ -620,61 +632,62 @@ export default function WasteMarket() {
   }, []);
 
   useEffect(() => { 
-    loadListings(); 
-    const unsub = syncManager.subscribe((event) => {
+    loadListings();
+
+    // 1. Real-time listing:created event (Instant update across browsers)
+    const unsubCreated = realtimeSocketClient.on('listing:created', (newListing) => {
+      console.log('[WasteMarket Socket] Received listing:created:', newListing);
+      setListings(prev => {
+        const normalized = normalizeListing(newListing);
+        const index = prev.findIndex(l => String(l.id) === String(normalized.id));
+        if (index >= 0) {
+          const updated = [...prev];
+          updated[index] = { ...updated[index], ...normalized };
+          return updated;
+        }
+        return [normalized, ...prev];
+      });
+    });
+
+    // 2. Real-time listing:updated event
+    const unsubUpdated = realtimeSocketClient.on('listing:updated', (updatedListing) => {
+      console.log('[WasteMarket Socket] Received listing:updated:', updatedListing);
+      setListings(prev => {
+        const normalized = normalizeListing(updatedListing);
+        return prev.map(l => String(l.id) === String(normalized.id) ? { ...l, ...normalized } : l);
+      });
+    });
+
+    // 3. Real-time listing:deleted event
+    const unsubDeleted = realtimeSocketClient.on('listing:deleted', (data) => {
+      console.log('[WasteMarket Socket] Received listing:deleted:', data);
+      const targetId = String(data?.id || data);
+      setListings(prev => prev.filter(l => String(l.id) !== targetId));
+    });
+
+    // 4. Sync queue fallback
+    const unsubSync = syncManager.subscribe((event) => {
       if (event.type === "ACTION_SYNCED" || event.type === "SYNC_COMPLETE") {
         loadListings();
       }
     });
-    return () => unsub();
+
+    return () => {
+      unsubCreated();
+      unsubUpdated();
+      unsubDeleted();
+      unsubSync();
+    };
   }, [user]);
 
   async function loadListings() {
     setLoading(true);
-    let existing = [];
-    try {
-      existing = await localDB.async.getData(KEYS.WASTE);
-    } catch (e) {
-      existing = localDB.getData(KEYS.WASTE);
+    const result = await marketplaceService.fetchListings();
+    if (result.listings && result.listings.length > 0) {
+      setListings(result.listings);
+    } else {
+      setListings(DEFAULT_WASTE_LISTINGS);
     }
-
-    if (!existing || existing.length === 0) {
-      existing = DEFAULT_WASTE_LISTINGS;
-      localDB.saveData(KEYS.WASTE, existing);
-    }
-
-    let data = existing.map(p => ({
-      id: p.id,
-      creatorId: p.creatorId || null,
-      creatorRole: p.creatorRole || (p.listingType === "buy" ? "buyer" : "farmer"),
-      creatorName: p.creatorName || p.user || p.farmer_name || p.buyerName || "User",
-      creatorPhone: p.creatorPhone || p.phone || p.buyerPhone || p.farmerPhone,
-      creatorVerificationStatus: p.creatorVerificationStatus || p.buyerVerificationStatus || null,
-      
-      buyerId: p.buyerId || (p.creatorRole === "buyer" ? p.creatorId : null),
-      buyerName: p.buyerName || (p.creatorRole === "buyer" ? p.creatorName : null),
-      buyerPhone: p.buyerPhone || (p.creatorRole === "buyer" ? p.creatorPhone || p.phone : null),
-      buyerVerificationStatus: p.buyerVerificationStatus || (p.creatorRole === "buyer" ? p.creatorVerificationStatus : null),
-
-      farmerName: p.farmerName || (p.creatorRole === "farmer" ? p.creatorName : null),
-      farmerPhone: p.farmerPhone || (p.creatorRole === "farmer" ? p.creatorPhone || p.phone : null),
-
-      crop_type: p.crop || p.crop_type,
-      condition: p.condition,
-      location: p.location,
-      created_date: p.date,
-      quantity_kg: p.quantity_kg || p.quantity || 100,
-      asking_price: p.asking_price || p.price || 0,
-      image: p.image || p.image_url || null,
-      status: p.status || "listed",
-      sync_status: p.sync_status || null,
-      listingType: p.listingType || (p.creatorRole === "buyer" ? "buy" : "sell"),
-      phone: p.creatorPhone || p.buyerPhone || p.farmerPhone || p.phone || p.contact_phone,
-      sourceAssessmentId: p.sourceAssessmentId || null,
-      source: p.source || null
-    }));
-
-    setListings(data);
     setLoading(false);
   }
 
@@ -711,107 +724,86 @@ export default function WasteMarket() {
     setUploadingImage(false);
 
     const isBuyerMode = userIsActiveBuyer;
-    const currentUserId = user.userId || user.id;
 
     if (editingListingId) {
-      // Edit existing listing without creating a duplicate
+      // Edit existing listing
       const existingListing = listings.find(l => l.id === editingListingId);
-      const updatedPost = {
-        ...(existingListing || {}),
-        id: editingListingId,
-        crop: form.crop_type,
+      const updates = {
         crop_type: form.crop_type,
-        quantity: Number(form.quantity_kg),
+        crop: form.crop_type,
         quantity_kg: Number(form.quantity_kg),
+        quantity: Number(form.quantity_kg),
         condition: form.condition,
         location: form.location,
-        price: Number(form.asking_price) || 0,
         asking_price: Number(form.asking_price) || 0,
-        image: base64String || existingListing?.image || "",
-        sourceAssessmentId: form.sourceAssessmentId !== undefined ? form.sourceAssessmentId : (existingListing?.sourceAssessmentId || null),
-        source: form.source || existingListing?.source || (existingListing?.sourceAssessmentId ? "viability-scanner" : "manual"),
-        updated_at: new Date().toISOString()
+        price: Number(form.asking_price) || 0,
+        image_url: base64String || existingListing?.image || "",
+        source_assessment_id: form.sourceAssessmentId !== undefined ? form.sourceAssessmentId : (existingListing?.sourceAssessmentId || null)
       };
 
-      localDB.updateItem(KEYS.WASTE, editingListingId, updatedPost);
+      const res = await marketplaceService.updateListing(editingListingId, updates, user);
+      if (res.success) {
+        setDialogOpen(false);
+        setEditingListingId(null);
+        setImageFile(null);
+        setScannerHandoff(null);
+        setForm({ crop_type: "", quantity_kg: "", condition: "slightly_damaged", location: "", asking_price: "", sourceAssessmentId: null, source: null });
+        setListings(prev => prev.map(l => String(l.id) === String(editingListingId) ? { ...l, ...res.data } : l));
+        showFeedback("Listing updated successfully.", "success");
+      } else {
+        alert(res.error || "Unable to update listing. Please try again.");
+      }
+      return;
+    }
 
-      enqueueAction({
-        userId: currentUserId,
-        actionType: ACTION_TYPES.UPDATE_MARKETPLACE_LISTING,
-        entityType: "marketplaceListing",
-        entityId: editingListingId,
-        payload: updatedPost
-      }).then(() => {
-        if (syncManager.isOnline()) {
-          syncManager.processQueue(currentUserId).catch(() => {});
-        }
-      }).catch(err => console.warn("[WasteMarket] Enqueue sync error:", err));
+    const newPost = {
+      id: `wp_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+      creatorRole: isBuyerMode ? "buyer" : "farmer",
+      crop_type: form.crop_type,
+      quantity_kg: Number(form.quantity_kg),
+      condition: form.condition,
+      location: form.location,
+      asking_price: Number(form.asking_price) || 0,
+      image: base64String,
+      sourceAssessmentId: form.sourceAssessmentId || null,
+      source: form.source || "manual",
+      title: `${form.crop_type} Crop Waste`
+    };
 
+    const res = await marketplaceService.createListing(newPost, user);
+
+    if (res.success) {
       setDialogOpen(false);
       setEditingListingId(null);
       setImageFile(null);
       setScannerHandoff(null);
       setForm({ crop_type: "", quantity_kg: "", condition: "slightly_damaged", location: "", asking_price: "", sourceAssessmentId: null, source: null });
-      loadListings();
-      return;
-    }
-
-    const newPost = {
-      id: Date.now().toString(),
-      creatorId: currentUserId,
-      creatorRole: isBuyerMode ? "buyer" : "farmer",
-      creatorName: user.name || user.full_name,
-      creatorPhone: user.phone,
-      creatorVerificationStatus: user.verificationStatus || "pending",
-      
-      listingType: isBuyerMode ? "buy" : "sell",
-      buyerId: isBuyerMode ? currentUserId : null,
-      buyerName: isBuyerMode ? (user.name || user.full_name) : null,
-      buyerPhone: isBuyerMode ? user.phone : null,
-      buyerVerificationStatus: isBuyerMode ? (user.verificationStatus || "pending") : null,
-
-      farmerId: !isBuyerMode ? currentUserId : null,
-      farmerName: !isBuyerMode ? (user.name || user.full_name) : null,
-      farmerPhone: !isBuyerMode ? user.phone : null,
-
-      crop: form.crop_type,
-      crop_type: form.crop_type,
-      quantity: Number(form.quantity_kg),
-      quantity_kg: Number(form.quantity_kg),
-      condition: form.condition,
-      location: form.location,
-      price: Number(form.asking_price) || 0,
-      asking_price: Number(form.asking_price) || 0,
-      
-      phone: user.phone,
-      date: new Date().toISOString(),
-      image: base64String,
-      status: "listed",
-      sync_status: "pending",
-      sourceAssessmentId: form.sourceAssessmentId || null,
-      source: form.source || "manual"
-    };
-
-    localDB.addItem(KEYS.WASTE, newPost);
-
-    enqueueAction({
-      userId: currentUserId,
-      actionType: ACTION_TYPES.CREATE_MARKETPLACE_LISTING,
-      entityType: "marketplaceListing",
-      entityId: newPost.id,
-      payload: newPost
-    }).then(() => {
-      if (syncManager.isOnline()) {
-        syncManager.processQueue(currentUserId).catch(() => {});
+      setListings(prev => {
+        const exists = prev.some(l => String(l.id) === String(res.data.id));
+        if (exists) return prev;
+        return [res.data, ...prev];
+      });
+      showFeedback("Listing published successfully to shared marketplace!", "success");
+    } else {
+      if (res.isOffline) {
+        alert(res.error || "Unable to publish listing because the server is unavailable.");
+        setDialogOpen(false);
+        setEditingListingId(null);
+        setImageFile(null);
+        setScannerHandoff(null);
+        setForm({ crop_type: "", quantity_kg: "", condition: "slightly_damaged", location: "", asking_price: "", sourceAssessmentId: null, source: null });
+        if (res.data) {
+          setListings(prev => [res.data, ...prev]);
+        }
+      } else {
+        alert(res.error || "Unable to publish listing. Please try again.");
       }
-    }).catch(err => console.warn("[WasteMarket] Enqueue sync error:", err));
+    }
+  }
 
-    setDialogOpen(false);
-    setEditingListingId(null);
-    setImageFile(null);
-    setScannerHandoff(null);
-    setForm({ crop_type: "", quantity_kg: "", condition: "slightly_damaged", location: "", asking_price: "", sourceAssessmentId: null, source: null });
-    loadListings();
+  function showFeedback(message, type = "success") {
+    setFeedbackNotice({ message, type });
+    setTimeout(() => setFeedbackNotice(null), 4000);
   }
 
   function handleDialogOpenChange(open) {
@@ -824,15 +816,20 @@ export default function WasteMarket() {
     }
   }
 
-  function handleDelete(id) {
+  async function handleDelete(id) {
     const item = listings.find(l => l.id === id);
     if (!isRecordOwner(item, user)) {
       alert("You can only remove listings that you created.");
       return;
     }
     if (confirm("Are you sure you want to remove this listing?")) {
-      localDB.deleteItem(KEYS.WASTE, id);
-      loadListings();
+      const res = await marketplaceService.deleteListing(id, user);
+      if (res.success) {
+        setListings(prev => prev.filter(l => String(l.id) !== String(id)));
+        showFeedback("Listing removed.", "info");
+      } else {
+        alert(res.error || "Unable to remove listing. Please try again.");
+      }
     }
   }
 
@@ -844,11 +841,25 @@ export default function WasteMarket() {
 
   return (
     <div className="space-y-6">
+      {feedbackNotice && (
+        <div className={`p-3 rounded-2xl text-xs font-semibold flex items-center justify-between border ${
+          feedbackNotice.type === "success" 
+            ? "bg-emerald-50 text-emerald-800 border-emerald-200 dark:bg-emerald-950/50 dark:text-emerald-300 dark:border-emerald-800" 
+            : "bg-sky-50 text-sky-800 border-sky-200 dark:bg-sky-950/50 dark:text-sky-300 dark:border-sky-800"
+        }`}>
+          <div className="flex items-center gap-2">
+            <Check className="h-4 w-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+            <span>{feedbackNotice.message}</span>
+          </div>
+        </div>
+      )}
+
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <div className="flex items-center gap-2 mb-1">
+          <div className="flex items-center gap-2.5 mb-1 flex-wrap">
             <ShoppingCart className="h-5 w-5 text-primary" />
             <h1 className="text-2xl sm:text-3xl font-bold text-foreground tracking-tight">{t("wasteMarket.title")}</h1>
+            <ConnectionStatusBadge />
           </div>
           <p className="text-muted-foreground text-sm">
             {userIsActiveBuyer 

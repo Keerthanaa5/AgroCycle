@@ -6,7 +6,7 @@
  */
 
 export const DB_NAME = "AgroCycleDB";
-export const DB_VERSION = 3;
+export const DB_VERSION = 4;
 
 export const STORES = {
   USERS: "users",
@@ -22,7 +22,10 @@ export const STORES = {
   NOTIFICATIONS: "notifications",
   SYSTEM_META: "systemMeta",
   SYNC_QUEUE: "syncQueue",
-  USER_LOCATIONS: "userLocations"
+  USER_LOCATIONS: "userLocations",
+  LOGISTICS_SHIPMENTS: "logisticsShipments",
+  LOGISTICS_DRIVERS: "logisticsDrivers",
+  LOGISTICS_VEHICLES: "logisticsVehicles"
 };
 
 const STORE_CONFIGS = {
@@ -137,6 +140,29 @@ const STORE_CONFIGS = {
       { name: "userId", keyPath: "userId", unique: false },
       { name: "is_read", keyPath: "is_read", unique: false },
       { name: "created_date", keyPath: "created_date", unique: false }
+    ]
+  },
+  [STORES.LOGISTICS_SHIPMENTS]: {
+    keyPath: "shipmentId",
+    indexes: [
+      { name: "buyerId", keyPath: "buyerId", unique: false },
+      { name: "driverId", keyPath: "driverId", unique: false },
+      { name: "status", keyPath: "status", unique: false },
+      { name: "createdAt", keyPath: "createdAt", unique: false }
+    ]
+  },
+  [STORES.LOGISTICS_DRIVERS]: {
+    keyPath: "driverId",
+    indexes: [
+      { name: "status", keyPath: "status", unique: false },
+      { name: "vehicleId", keyPath: "vehicleId", unique: false }
+    ]
+  },
+  [STORES.LOGISTICS_VEHICLES]: {
+    keyPath: "vehicleId",
+    indexes: [
+      { name: "capacityKg", keyPath: "capacityKg", unique: false },
+      { name: "status", keyPath: "status", unique: false }
     ]
   },
   [STORES.SYSTEM_META]: {

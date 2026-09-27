@@ -4,9 +4,13 @@ import { storageService } from '@/services/storageService';
 import { 
   isFarmer, 
   isBuyer, 
+  isDriver,
+  isAdmin,
   isDualRole, 
   isActiveFarmer, 
   isActiveBuyer, 
+  isActiveDriver,
+  isActiveAdmin,
   getActiveRole, 
   isVerified, 
   ROLES 
@@ -86,6 +90,39 @@ export const DEFAULT_DEMO_ACCOUNTS = [
       operatingLocation: "Guntur Agri Hub",
       intendedUse: "Silage Baling & Cattle Feed Mash"
     }
+  },
+  {
+    userId: "usr_driver_ravi_04",
+    id: "usr_driver_ravi_04",
+    name: "Ravi Transport (Driver)",
+    full_name: "Ravi Transport (Driver)",
+    phone: "9876543213",
+    email: "ravi.logistics@agrocycle.in",
+    password: "demo",
+    roles: [ROLES.DRIVER],
+    activeRole: ROLES.DRIVER,
+    role: ROLES.DRIVER,
+    verificationStatus: "verified",
+    driverProfile: {
+      vehicleType: "12-ton Heavy Truck",
+      vehicleCapacityKg: 12000,
+      registrationNumber: "TN-58-AG-1234",
+      baseLocation: "Madurai Logistics Park",
+      licenseNumber: "TN58 20210004589"
+    }
+  },
+  {
+    userId: "usr_admin_05",
+    id: "usr_admin_05",
+    name: "Agro Admin",
+    full_name: "AgroCycle System Admin",
+    phone: "9876543214",
+    email: "admin@agrocycle.in",
+    password: "demo",
+    roles: [ROLES.ADMIN, ROLES.FARMER, ROLES.BUYER, ROLES.DRIVER],
+    activeRole: ROLES.ADMIN,
+    role: ROLES.ADMIN,
+    verificationStatus: "verified"
   }
 ];
 
@@ -513,9 +550,13 @@ export const AuthProvider = ({ children }) => {
       role: activeRole, // backward compatibility
       isFarmer: isFarmer(user),
       isBuyer: isBuyer(user),
+      isDriver: isDriver(user),
+      isAdmin: isAdmin(user),
       isDualRole: isDualRole(user),
       isActiveFarmer: isActiveFarmer(user),
       isActiveBuyer: isActiveBuyer(user),
+      isActiveDriver: isActiveDriver(user),
+      isActiveAdmin: isActiveAdmin(user),
       isVerified: isVerified(user),
       isAuthenticated, 
       isLoadingAuth,

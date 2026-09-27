@@ -6,10 +6,12 @@ const router = Router();
 
 /**
  * Basic service health check
+ * Expected: { "status": "ok", "backend": "ok" }
  */
 router.get('/health', (_req, res) => {
   res.status(200).json({
     status: 'ok',
+    backend: 'ok',
     service: 'agrocycle-backend',
     timestamp: new Date().toISOString()
   });
@@ -17,13 +19,15 @@ router.get('/health', (_req, res) => {
 
 /**
  * Database connectivity health check
+ * Expected: { "backend": "ok", "database": "connected" }
  */
 router.get('/health/db', async (_req, res) => {
   if (!config.databaseUrl) {
     return res.status(503).json({
       status: 'unavailable',
+      backend: 'ok',
+      database: 'disconnected',
       service: 'agrocycle-database',
-      database: 'postgresql',
       connected: false,
       message: 'Database is not configured (DATABASE_URL missing).'
     });
@@ -33,8 +37,9 @@ router.get('/health/db', async (_req, res) => {
   if (!pool) {
     return res.status(503).json({
       status: 'error',
+      backend: 'ok',
+      database: 'disconnected',
       service: 'agrocycle-database',
-      database: 'postgresql',
       connected: false,
       message: 'Failed to initialize database connection pool.'
     });
@@ -45,8 +50,9 @@ router.get('/health/db', async (_req, res) => {
     if (result && result.rows && result.rows.length > 0) {
       return res.status(200).json({
         status: 'ok',
+        backend: 'ok',
+        database: 'connected',
         service: 'agrocycle-database',
-        database: 'postgresql',
         connected: true,
         timestamp: new Date().toISOString()
       });
@@ -54,17 +60,18 @@ router.get('/health/db', async (_req, res) => {
 
     return res.status(503).json({
       status: 'error',
+      backend: 'ok',
+      database: 'disconnected',
       service: 'agrocycle-database',
-      database: 'postgresql',
       connected: false,
       message: 'Database query returned unexpected result.'
     });
   } catch (err) {
-    // Controlled response without leaking host or credentials
     return res.status(503).json({
       status: 'error',
+      backend: 'ok',
+      database: 'disconnected',
       service: 'agrocycle-database',
-      database: 'postgresql',
       connected: false,
       message: 'Database connection failed.'
     });

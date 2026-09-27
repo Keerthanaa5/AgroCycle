@@ -1,5 +1,10 @@
 import { query } from '../db/pool.js';
 import { validateRequired, validateNumber } from '../validators/inputValidators.js';
+import {
+  broadcastAgroConnectCreated,
+  broadcastAgroConnectUpdated,
+  broadcastAgroConnectDeleted
+} from '../realtime/socketManager.js';
 
 const ALLOWED_POST_TYPES = [
   'offering_waste',
@@ -219,11 +224,15 @@ export async function createAgroConnectPost(req, res, next) {
       ]
     );
 
-    res.status(201).json({ status: 'success', data: result.rows[0] });
+    const savedPost = result.rows[0];
+    broadcastAgroConnectCreated(savedPost);
+
+    res.status(201).json({ status: 'success', data: savedPost });
   } catch (err) {
     next(err);
   }
 }
+
 
 /**
  * Update AgroConnect post (strictly owner only)
@@ -297,7 +306,10 @@ export async function updateAgroConnectPost(req, res, next) {
     const updateSql = `UPDATE agroconnect_posts SET ${fields.join(', ')} WHERE id = $${idx} RETURNING *`;
     const result = await query(updateSql, values);
 
-    res.status(200).json({ status: 'success', data: result.rows[0] });
+    const updatedPost = result.rows[0];
+    broadcastAgroConnectUpdated(updatedPost);
+
+    res.status(200).json({ status: 'success', data: updatedPost });
   } catch (err) {
     next(err);
   }
@@ -330,11 +342,14 @@ export async function deleteAgroConnectPost(req, res, next) {
     }
 
     await query('DELETE FROM agroconnect_posts WHERE id = $1', [id]);
-    res.status(200).json({ status: 'success', message: `AgroConnect post "${id}" deleted` });
+    broadcastAgroConnectDeleted({ id, deletedPost: post });
+
+    res.status(200).json({ status: 'success', message: `AgroConnect post "${id}" deleted`, data: { id } });
   } catch (err) {
     next(err);
   }
 }
+
 
 /**
  * Interact with an AgroConnect post (express interest, offer help, reply)
@@ -415,10 +430,13 @@ export async function interactWithPost(req, res, next) {
       ]
     );
 
+    const updatedPost = updateRes.rows[0];
+    broadcastAgroConnectUpdated(updatedPost);
+
     res.status(200).json({
       status: 'success',
       data: {
-        post: updateRes.rows[0],
+        post: updatedPost,
         interaction: newInteraction
       }
     });
@@ -506,11 +524,15 @@ export async function manageConnection(req, res, next) {
       [JSON.stringify(updatedConnections), id]
     );
 
+    const updatedPost = updateRes.rows[0];
+    broadcastAgroConnectUpdated(updatedPost);
+
     res.status(200).json({
       status: 'success',
-      data: updateRes.rows[0]
+      data: updatedPost
     });
   } catch (err) {
     next(err);
   }
 }
+

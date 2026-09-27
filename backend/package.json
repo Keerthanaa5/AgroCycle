@@ -1,0 +1,36 @@
+{
+  "name": "agrocycle-backend",
+  "version": "1.0.0",
+  "description": "AgroCycle Backend Service & API Gateway",
+  "main": "src/server.js",
+  "type": "module",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "node --watch src/server.js",
+    "test": "node test_backend.js",
+    "test:phase4": "node test_phase4_sync.js",
+    "test:phase5": "node test_phase5_modules.js",
+    "test:agroconnect": "node test_agroconnect_e2e.js",
+    "test:e2e": "node test_e2e_functional_audit.js",
+    "db:migrate": "node src/db/migrate.js",
+    "db:status": "node src/db/status.js"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "helmet": "^8.0.0",
+    "pg": "^8.13.1"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "keywords": [
+    "agrocycle",
+    "agriculture",
+    "backend",
+    "api"
+  ],
+  "author": "AgroCycle Team",
+  "license": "ISC"
+}

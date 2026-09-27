@@ -1,9 +1,9 @@
 import * as ort from "onnxruntime-web";
+import { evaluateRescuePathway, PATHWAY_NAMES } from "./decisionEngine.js";
 
-// Configure WASM paths with exact matching installed version 1.29.0
-const ORT_VERSION = "1.29.0";
+// Configure local WASM paths (zero external CDN dependency for 100% offline inference)
 if (typeof window !== "undefined") {
-  ort.env.wasm.wasmPaths = `https://cdn.jsdelivr.net/npm/onnxruntime-web@${ORT_VERSION}/dist/`;
+  ort.env.wasm.wasmPaths = "/wasm/";
   ort.env.wasm.numThreads = 1;
 }
 
@@ -48,7 +48,7 @@ export async function getYOLOSession() {
   sessionLoadingPromise = (async () => {
     try {
       if (typeof window !== "undefined") {
-        ort.env.wasm.wasmPaths = `https://cdn.jsdelivr.net/npm/onnxruntime-web@${ORT_VERSION}/dist/`;
+        ort.env.wasm.wasmPaths = "/wasm/";
         ort.env.wasm.numThreads = 1;
       }
 
@@ -282,7 +282,12 @@ export function getBurdenCategory(burdenScore) {
  * Translates structured YOLO detections into agricultural viability metrics,
  * combining detection confidence, detection count, and spatial bounding box coverage.
  */
-export function computeViabilityAssessment(detections, cropTypeHint = "", origDimensions = { width: 0, height: 0 }) {
+export function computeViabilityAssessment(
+  detections,
+  cropTypeHint = "",
+  origDimensions = { width: 0, height: 0 },
+  farmerContext = {}
+) {
   const diseaseDetections = detections.filter(d => d.isDisease);
   const unspecifiedLeafDetections = detections.filter(d => !d.isDisease);
 
@@ -347,11 +352,11 @@ export function computeViabilityAssessment(detections, cropTypeHint = "", origDi
   const burdenCategory = getBurdenCategory(AIVisualDiseaseBurden);
 
   // 5. Overall Condition Label & Confidence Safeguard
-  let conditionLabel = "NO DISEASE INDICATOR DETECTED";
+  let conditionLabel = "NO DISEASE-SPECIFIC INDICATOR DETECTED";
   let conditionKey = "low"; // styling key: low | medium | high | critical
 
   if (diseaseDetections.length === 0 || AIVisualDiseaseBurden === 0) {
-    conditionLabel = "NO DISEASE INDICATOR DETECTED";
+    conditionLabel = "NO DISEASE-SPECIFIC INDICATOR DETECTED";
     conditionKey = "low";
   } else if (AIVisualDiseaseBurden <= 25) {
     conditionLabel = "LOW CONCERN";
@@ -387,43 +392,28 @@ export function computeViabilityAssessment(detections, cropTypeHint = "", origDi
       description = `Strong visual indicators consistent with ${dominantCrop} ${primaryDisease} were detected. Agronomic assessment is recommended for appropriate crop-management or resource-recovery decisions.`;
     }
   } else if (unspecifiedLeafDetections.length > 0) {
-    description = `Foliage detected for ${dominantCrop} (${unspecifiedLeafDetections.length} leaf regions). No specific disease symptoms identified by the model.`;
+    description = `Foliage detected for ${dominantCrop} (${unspecifiedLeafDetections.length} leaf regions). No disease-specific indicators identified by the model.`;
   } else {
-    description = `Scan completed for ${dominantCrop}. No standard leaf disease patterns detected above confidence threshold.`;
+    description = `Scan completed for ${dominantCrop}. No disease-specific visual indicators detected above confidence threshold.`;
   }
 
-  // 7. Routing Recommendation & Safety Reasoning
-  let recommendation = {
-    feature: "AgroConnect",
-    action: "Direct Market Sale & Routine Field Monitoring",
-    reason: "No active disease indicators detected in current scan. Generic leaf status indicates foliage presence without verified disease markers; continue standard agronomic management.",
-    confidence: aiConfidenceCategory
+  // 7. AgroCycle Decision Engine Evaluation
+  const visualEvidence = {
+    cropName: dominantCrop,
+    primaryDisease,
+    maxDetectionConfidence,
+    aiConfidenceCategory,
+    visualCoverage: Number(visualCoverage.toFixed(1)),
+    AIVisualDiseaseBurden,
+    burdenCategory,
+    conditionKey,
+    conditionLabel,
+    diseaseDetections,
+    unspecifiedLeafDetections,
+    totalDetections: detections
   };
 
-  if (diseaseDetections.length > 0) {
-    let safetyReasoning = "";
-    if (maxDetectionConfidence >= 0.75) {
-      safetyReasoning = `Strong visual indicators consistent with ${dominantCrop} ${primaryDisease} were detected. Agronomic and safety assessment is required before any secondary use. Diseased material must not be assumed safe for livestock feed; if safety thresholds fail, convert to compost/biochar via Carbon Cash.`;
-    } else {
-      safetyReasoning = `Visual indicators consistent with ${dominantCrop} ${primaryDisease} were detected. Agronomic and safety assessment is required before any secondary use. Diseased material must not be assumed safe for livestock feed; if safety thresholds fail, convert to compost/biochar via Carbon Cash.`;
-    }
-
-    if (conditionLabel === "CRITICAL CONDITION" || conditionLabel === "HIGH CONCERN" || conditionLabel === "REVIEW REQUIRED") {
-      recommendation = {
-        feature: "Resource Recovery / Waste Matcher",
-        action: "Resource Recovery Assessment & Composting Evaluation",
-        reason: safetyReasoning,
-        confidence: aiConfidenceCategory
-      };
-    } else {
-      recommendation = {
-        feature: "Waste Market",
-        action: "Secondary Processing Evaluation & Localized Segregation",
-        reason: safetyReasoning,
-        confidence: aiConfidenceCategory
-      };
-    }
-  }
+  const rescueDecision = evaluateRescuePathway(visualEvidence, farmerContext);
 
   const usableEstimatedScore = Math.max(0, 100 - AIVisualDiseaseBurden);
 
@@ -442,7 +432,15 @@ export function computeViabilityAssessment(detections, cropTypeHint = "", origDi
     totalDetectionsCount: detections.length,
     primaryDisease,
     description,
-    finalRecommendation: recommendation,
+    finalRecommendation: rescueDecision.primaryPathway,
+    rescueDecision,
+    routingConfidence: rescueDecision.routingConfidence,
+    safetyNote: rescueDecision.safetyNote,
+    missingContextNotice: rescueDecision.missingContextNotice,
+    alternatives: rescueDecision.alternatives,
+    pathwayEvaluations: rescueDecision.pathwayEvaluations,
+    pathwayScores: rescueDecision.pathwayScores,
+    farmerContext: rescueDecision.farmerContext,
     detections: detections.map(d => ({
       ...d,
       confidenceCategory: getConfidenceCategory(d.confidence)
@@ -452,9 +450,10 @@ export function computeViabilityAssessment(detections, cropTypeHint = "", origDi
 }
 
 /**
- * Main entry point: runs end-to-end YOLO ONNX inference on an image
+ * Analyzes a single representative leaf/crop sample image independently using YOLO11n.
+ * Returns structured sample-level metrics (detections, bounding boxes, visual coverage, confidence).
  */
-export async function runYOLOScan(imageSource, cropTypeHint = "") {
+export async function analyzeSingleSample(imageSource, sampleId = "sample-1", cropTypeHint = "") {
   const session = await getYOLOSession();
   const { tensor, transform } = await preprocessImage(imageSource);
 
@@ -466,10 +465,112 @@ export async function runYOLOScan(imageSource, cropTypeHint = "") {
   }
 
   const detections = postprocessYOLO(outputTensor, transform, 0.25, 0.45);
-  const assessment = computeViabilityAssessment(detections, cropTypeHint, {
-    width: transform.origW,
-    height: transform.origH
-  });
+  
+  const diseaseDetections = detections.filter(d => d.isDisease);
+  const unspecifiedLeafDetections = detections.filter(d => !d.isDisease);
+
+  let maxDetectionConfidence = 0;
+  let highestConfidenceDisease = null;
+  let primaryDisease = null;
+  let sampleCrop = cropTypeHint || "Crop";
+
+  if (diseaseDetections.length > 0) {
+    diseaseDetections.forEach(d => {
+      if (d.confidence > maxDetectionConfidence) {
+        maxDetectionConfidence = d.confidence;
+        highestConfidenceDisease = d;
+      }
+    });
+    primaryDisease = highestConfidenceDisease?.diseaseName || highestConfidenceDisease?.displayName || "Disease Indicator";
+    sampleCrop = highestConfidenceDisease?.crop || cropTypeHint || "Crop";
+  } else if (unspecifiedLeafDetections.length > 0) {
+    unspecifiedLeafDetections.forEach(d => {
+      if (d.confidence > maxDetectionConfidence) {
+        maxDetectionConfidence = d.confidence;
+      }
+    });
+    sampleCrop = unspecifiedLeafDetections[0]?.crop || cropTypeHint || "Crop";
+  }
+
+  const imageArea = (transform.origW && transform.origH) ? (transform.origW * transform.origH) : 0;
+  let sumWeightedArea = 0;
+  if (imageArea > 0 && diseaseDetections.length > 0) {
+    diseaseDetections.forEach(d => {
+      const [x1, y1, x2, y2] = d.box;
+      const boxW = Math.max(0, x2 - x1);
+      const boxH = Math.max(0, y2 - y1);
+      sumWeightedArea += d.confidence * (boxW * boxH);
+    });
+  }
+
+  const visualCoverage = imageArea > 0 ? Math.min(100, Math.max(0, (100 * sumWeightedArea) / imageArea)) : 0;
+
+  let burdenScore = 0;
+  if (diseaseDetections.length > 0) {
+    burdenScore = Math.min(100, Math.max(1, Math.round(0.60 * (maxDetectionConfidence * 100) + 0.40 * visualCoverage)));
+  }
+
+  let conditionKey = "low";
+  if (diseaseDetections.length === 0) {
+    conditionKey = "low";
+  } else if (burdenScore <= 25) {
+    conditionKey = "low";
+  } else if (burdenScore <= 50) {
+    conditionKey = "medium";
+  } else if (burdenScore <= 75) {
+    conditionKey = "high";
+  } else {
+    conditionKey = "critical";
+  }
+
+  return {
+    id: sampleId,
+    image: imageSource,
+    crop: sampleCrop,
+    primaryDisease,
+    hasDisease: diseaseDetections.length > 0,
+    maxConfidence: Number(maxDetectionConfidence.toFixed(4)),
+    confidence: Number(maxDetectionConfidence.toFixed(4)),
+    visualCoverage: Number(visualCoverage.toFixed(1)),
+    burdenScore,
+    conditionKey,
+    detections: detections.map(d => ({
+      ...d,
+      confidenceCategory: getConfidenceCategory(d.confidence)
+    })),
+    diseaseDetections,
+    unspecifiedLeafDetections,
+    totalDetectionsCount: detections.length,
+    diseaseDetectionCount: diseaseDetections.length,
+    isValid: true
+  };
+}
+
+/**
+ * Main entry point: runs end-to-end YOLO ONNX inference on an image
+ */
+export async function runYOLOScan(imageSource, cropTypeHint = "", farmerContext = {}) {
+  const session = await getYOLOSession();
+  const { tensor, transform } = await preprocessImage(imageSource);
+
+  const results = await session.run({ images: tensor });
+  const outputTensor = results["output0"];
+
+  if (!outputTensor) {
+    throw new Error("Invalid output received from YOLO ONNX model.");
+  }
+
+  const detections = postprocessYOLO(outputTensor, transform, 0.25, 0.45);
+  const assessment = computeViabilityAssessment(
+    detections,
+    cropTypeHint,
+    {
+      width: transform.origW,
+      height: transform.origH
+    },
+    farmerContext
+  );
 
   return assessment;
 }
+

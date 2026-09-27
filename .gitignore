@@ -1,6 +1,11 @@
 #env
 .env
 .env.*
+backend/.env
+backend/.env.*
+!.env.example
+!backend/.env.example
+
 
 # Logs
 /logs
@@ -29,3 +34,69 @@ dist-ssr
 
 .env
 .vite
+# Python / ML
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ipynb_checkpoints/
+
+# ML model weights and checkpoints
+*.safetensors
+*.bin
+*.pt
+*.pth
+*.ckpt
+ai/models/
+ai/checkpoints/
+ai/outputs/
+
+# Hugging Face / ML caches
+.cache/
+huggingface/
+hf_cache/
+transformers_cache/
+
+# Temporary files
+scratch/
+*.tmp
+*.bak
+
+# Python / ML
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ipynb_checkpoints/
+
+# ML model weights and checkpoints
+*.safetensors
+*.bin
+*.pt
+*.pth
+*.ckpt
+ai/models/
+ai/checkpoints/
+ai/outputs/
+
+# Hugging Face / ML caches
+.cache/
+huggingface/
+hf_cache/
+transformers_cache/
+
+# Temporary files
+scratch/
+*.tmp
+*.bak
+
+# Temporary development files
+refactor.cjs
+test.js
+test2.js
+test3.js
+test25.js
+test-models.js
+test_models.js
+test_claim_rocket_integration.js
+test_decision_engine.js
+test_field_assessment_engine.js
+test_scanner_key.js

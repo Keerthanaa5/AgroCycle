@@ -1,8 +1,9 @@
 import { useState, useEffect, useRef } from "react";
-import { base44 } from "@/api/base44Client";
+import { mockApi } from "@/api/mockApi";
 import { Bell } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Link } from "react-router-dom";
+import { useLanguage } from "@/i18n";
 
 const typeIcons = {
   buyer_match: "🛒",
@@ -13,6 +14,7 @@ const typeIcons = {
 };
 
 export default function NotificationBell() {
+  const { t } = useLanguage();
   const [notifications, setNotifications] = useState([]);
   const [open, setOpen] = useState(false);
   const panelRef = useRef(null);
@@ -21,7 +23,7 @@ export default function NotificationBell() {
     loadNotifications();
 
     // Real-time subscription
-    const unsub = base44.entities.Notification.subscribe((event) => {
+    const unsub = mockApi.entities.Notification.subscribe((event) => {
       if (event.type === "create") {
         setNotifications((prev) => [event.data, ...prev]);
       } else if (event.type === "update") {
@@ -47,9 +49,9 @@ export default function NotificationBell() {
   }, []);
 
   async function loadNotifications() {
-    const me = await base44.auth.me().catch(() => null);
+    const me = await mockApi.auth.me().catch(() => null);
     if (!me) return;
-    const data = await base44.entities.Notification.filter(
+    const data = await mockApi.entities.Notification.filter(
       { recipient_email: me.email },
       "-created_date",
       30
@@ -60,13 +62,13 @@ export default function NotificationBell() {
   async function markAllRead() {
     const unread = notifications.filter((n) => !n.is_read);
     await Promise.all(
-      unread.map((n) => base44.entities.Notification.update(n.id, { is_read: true }))
+      unread.map((n) => mockApi.entities.Notification.update(n.id, { is_read: true }))
     );
     setNotifications((prev) => prev.map((n) => ({ ...n, is_read: true })));
   }
 
   async function markRead(id) {
-    await base44.entities.Notification.update(id, { is_read: true });
+    await mockApi.entities.Notification.update(id, { is_read: true });
     setNotifications((prev) =>
       prev.map((n) => (n.id === id ? { ...n, is_read: true } : n))
     );
@@ -78,9 +80,10 @@ export default function NotificationBell() {
     <div className="relative" ref={panelRef}>
       <button
         onClick={() => setOpen((o) => !o)}
-        className="relative h-10 w-10 rounded-xl bg-accent flex items-center justify-center hover:bg-accent/80 transition-colors"
+        className="relative h-9 w-9 rounded-full bg-card border border-border/80 flex items-center justify-center hover:bg-secondary transition-all shadow-xs text-foreground"
+        title={t("common.notifications")}
       >
-        <Bell className="h-5 w-5 text-foreground" />
+        <Bell className="h-4 w-4" />
         <AnimatePresence>
           {unreadCount > 0 && (
             <motion.span
@@ -88,7 +91,7 @@ export default function NotificationBell() {
               initial={{ scale: 0 }}
               animate={{ scale: 1 }}
               exit={{ scale: 0 }}
-              className="absolute -top-1 -right-1 h-5 w-5 rounded-full bg-destructive text-destructive-foreground text-xs font-bold flex items-center justify-center"
+              className="absolute -top-1 -right-1 h-4 w-4 rounded-full bg-amber-600 text-white text-[10px] font-bold flex items-center justify-center shadow-xs"
             >
               {unreadCount > 9 ? "9+" : unreadCount}
             </motion.span>
@@ -99,29 +102,29 @@ export default function NotificationBell() {
       <AnimatePresence>
         {open && (
           <motion.div
-            initial={{ opacity: 0, y: 8, scale: 0.95 }}
+            initial={{ opacity: 0, y: 8, scale: 0.96 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 8, scale: 0.95 }}
+            exit={{ opacity: 0, y: 8, scale: 0.96 }}
             transition={{ duration: 0.15 }}
-            className="absolute right-0 top-12 w-80 bg-card border border-border rounded-2xl shadow-2xl z-50 overflow-hidden"
+            className="absolute right-0 top-11 w-80 bg-card border border-border/90 rounded-2xl shadow-natural-lg z-50 overflow-hidden"
           >
-            <div className="flex items-center justify-between px-4 py-3 border-b border-border">
-              <h3 className="font-bold text-sm">Notifications</h3>
+            <div className="flex items-center justify-between px-4 py-3 border-b border-border/70 bg-muted/30">
+              <h3 className="font-semibold text-sm text-foreground">{t("common.notifications")}</h3>
               {unreadCount > 0 && (
                 <button
                   onClick={markAllRead}
-                  className="text-xs text-primary hover:underline"
+                  className="text-xs text-primary font-medium hover:underline"
                 >
-                  Mark all read
+                  {t("common.clearAll")}
                 </button>
               )}
             </div>
 
-            <div className="max-h-96 overflow-y-auto">
+            <div className="max-h-80 overflow-y-auto divide-y divide-border/40">
               {notifications.length === 0 ? (
-                <div className="py-10 text-center text-muted-foreground text-sm">
-                  <Bell className="h-8 w-8 mx-auto mb-2 opacity-40" />
-                  No notifications yet
+                <div className="py-8 text-center text-muted-foreground text-xs">
+                  <Bell className="h-6 w-6 mx-auto mb-2 opacity-30" />
+                  {t("common.noNotifications")}
                 </div>
               ) : (
                 notifications.map((n) => (
@@ -129,23 +132,23 @@ export default function NotificationBell() {
                     key={n.id}
                     to={n.link || "/"}
                     onClick={() => { markRead(n.id); setOpen(false); }}
-                    className={`flex gap-3 px-4 py-3 hover:bg-accent transition-colors border-b border-border/50 last:border-0 ${
+                    className={`flex gap-3 px-4 py-3 hover:bg-secondary/40 transition-colors ${
                       !n.is_read ? "bg-primary/5" : ""
                     }`}
                   >
-                    <span className="text-xl flex-shrink-0 mt-0.5">
+                    <span className="text-lg flex-shrink-0 mt-0.5">
                       {typeIcons[n.type] || "🔔"}
                     </span>
                     <div className="flex-1 min-w-0">
-                      <p className={`text-sm font-medium truncate ${!n.is_read ? "text-foreground" : "text-muted-foreground"}`}>
+                      <p className={`text-xs font-semibold truncate ${!n.is_read ? "text-foreground" : "text-muted-foreground"}`}>
                         {n.title}
                       </p>
-                      <p className="text-xs text-muted-foreground leading-relaxed mt-0.5 line-clamp-2">
+                      <p className="text-[11px] text-muted-foreground leading-relaxed mt-0.5 line-clamp-2">
                         {n.message}
                       </p>
                     </div>
                     {!n.is_read && (
-                      <span className="h-2 w-2 rounded-full bg-primary flex-shrink-0 mt-2" />
+                      <span className="h-2 w-2 rounded-full bg-primary flex-shrink-0 mt-1.5" />
                     )}
                   </Link>
                 ))

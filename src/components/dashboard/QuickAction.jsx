@@ -6,32 +6,34 @@ export default function QuickAction({ icon: Icon, label, description, path, colo
   const colorMap = {
     primary: "bg-primary text-primary-foreground",
     secondary: "bg-secondary text-secondary-foreground",
-    green: "bg-emerald-500 text-white",
-    amber: "bg-amber-500 text-white",
-    blue: "bg-blue-500 text-white",
-    rose: "bg-rose-500 text-white",
-    purple: "bg-purple-500 text-white",
-    teal: "bg-teal-500 text-white",
+    green: "bg-emerald-700 text-white",
+    amber: "bg-amber-600 text-white",
+    blue: "bg-sky-700 text-white",
+    rose: "bg-rose-600 text-white",
+    purple: "bg-purple-700 text-white",
+    teal: "bg-teal-700 text-white",
   };
 
   return (
     <motion.div
-      initial={{ opacity: 0, y: 20 }}
+      initial={{ opacity: 0, y: 15 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ delay: index * 0.05 }}
+      transition={{ delay: index * 0.04, duration: 0.2 }}
     >
       <Link
         to={path}
-        className="flex items-center gap-4 p-4 bg-card rounded-2xl border border-border hover:shadow-lg hover:shadow-primary/5 transition-all duration-300 group"
+        className="flex items-center gap-3.5 p-4 bg-card rounded-2xl border border-border/80 shadow-xs hover:shadow-natural hover:border-primary/30 hover:-translate-y-0.5 transition-all duration-200 group"
       >
-        <div className={`h-12 w-12 rounded-xl flex items-center justify-center flex-shrink-0 ${colorMap[color]}`}>
+        <div className={`h-11 w-11 rounded-2xl flex items-center justify-center flex-shrink-0 shadow-xs ${colorMap[color] || colorMap.primary}`}>
           <Icon className="h-5 w-5" />
         </div>
         <div className="flex-1 min-w-0">
-          <p className="font-semibold text-sm text-foreground">{label}</p>
-          <p className="text-xs text-muted-foreground truncate">{description}</p>
+          <p className="font-semibold text-sm text-foreground group-hover:text-primary transition-colors">{label}</p>
+          <p className="text-xs text-muted-foreground truncate mt-0.5">{description}</p>
         </div>
-        <ChevronRight className="h-4 w-4 text-muted-foreground group-hover:text-foreground group-hover:translate-x-1 transition-all" />
+        <div className="h-8 w-8 rounded-full flex items-center justify-center text-muted-foreground group-hover:text-primary group-hover:bg-secondary transition-all">
+          <ChevronRight className="h-4 w-4 group-hover:translate-x-0.5 transition-transform" />
+        </div>
       </Link>
     </motion.div>
   );

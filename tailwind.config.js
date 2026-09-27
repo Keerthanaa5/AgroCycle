@@ -8,9 +8,17 @@ module.exports = {
         sans: ['var(--font-sans)'],
       },
       borderRadius: {
+        '3xl': '1.75rem',
+        '2xl': '1.25rem',
+        xl: '1rem',
         lg: 'var(--radius)',
-        md: 'calc(var(--radius) - 2px)',
-        sm: 'calc(var(--radius) - 4px)',
+        md: 'calc(var(--radius) - 4px)',
+        sm: 'calc(var(--radius) - 8px)',
+      },
+      boxShadow: {
+        'xs': '0 1px 2px 0 rgba(18, 33, 23, 0.04)',
+        'natural': '0 4px 20px -2px rgba(18, 33, 23, 0.06)',
+        'natural-lg': '0 10px 30px -4px rgba(18, 33, 23, 0.08)',
       },
       colors: {
         background: 'hsl(var(--background))',

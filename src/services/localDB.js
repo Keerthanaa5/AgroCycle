@@ -22,6 +22,8 @@ const KEY_TO_STORE = {
   [KEYS.LOGISTICS_VEHICLES]: STORES.LOGISTICS_VEHICLES
 };
 
+const memoryStore = new Map();
+
 /**
  * Synchronous localDB bridge with background IndexedDB persistence.
  * Preserves 100% backward compatibility for existing pages while persisting
@@ -30,11 +32,13 @@ const KEY_TO_STORE = {
 export const localDB = {
   getData: (key) => {
     try {
-      if (typeof localStorage === "undefined") return [];
+      if (typeof localStorage === "undefined") {
+        return memoryStore.get(key) || [];
+      }
       return JSON.parse(localStorage.getItem(key)) || [];
     } catch (e) {
       console.warn(`[localDB] Error reading key "${key}" from localStorage:`, e);
-      return [];
+      return memoryStore.get(key) || [];
     }
   },
   
@@ -42,9 +46,12 @@ export const localDB = {
     try {
       if (typeof localStorage !== "undefined") {
         localStorage.setItem(key, JSON.stringify(data));
+      } else {
+        memoryStore.set(key, data);
       }
     } catch (e) {
       console.warn(`[localDB] Error writing key "${key}" to localStorage:`, e);
+      memoryStore.set(key, data);
     }
 
     // Mirror to IndexedDB in background

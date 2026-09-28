@@ -52,15 +52,26 @@ import VerifiedBadge from "@/components/VerifiedBadge";
 import { enqueueAction, ACTION_TYPES } from "@/services/syncQueue";
 import { syncManager } from "@/services/syncManager";
 
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import SmartMatchingWorkspace from "@/components/matching/SmartMatchingWorkspace";
+import FarmerSupplyWorkspace from "@/components/matching/FarmerSupplyWorkspace";
+import ListProduceModal from "@/components/matching/ListProduceModal";
+import { ROLES } from "@/services/roleManager";
+import { Plus, Sprout } from "lucide-react";
+
 export default function MarketIntelligence() {
-  const { user } = useAuth();
+  const { user, isActiveFarmer, isActiveBuyer, activeRole } = useAuth();
   const { t } = useLanguage();
   const { isOnline, isOffline } = useOnlineStatus();
   const navigate = useNavigate();
+  const [activeMainTab, setActiveMainTab] = useState("procurement");
+  const [listProduceOpen, setListProduceOpen] = useState(false);
+
+  const isFarmerMode = isActiveFarmer || activeRole === ROLES.FARMER || (!isActiveBuyer && user?.role !== ROLES.BUYER);
 
   // Primary Input States
   const [crop, setCrop] = useState("Tomato");
-  const [quantity, setQuantity] = useState("500");
+  const [quantity, setQuantity] = useState("1000");
   const [locationText, setLocationText] = useState("Madurai, Tamil Nadu");
   const [farmerLocation, setFarmerLocation] = useState({
     latitude: 9.9252,
@@ -292,51 +303,116 @@ export default function MarketIntelligence() {
         <div>
           <div className="flex items-center gap-2 mb-1 flex-wrap">
             <TrendingUp className="h-6 w-6 text-primary" />
-            <h1 className="text-2xl sm:text-3xl font-bold text-foreground tracking-tight">
-              Layer C — Market Intelligence & Commercial Matching
+            <h1 className="text-2xl sm:text-3xl font-extrabold text-foreground tracking-tight">
+              {isFarmerMode 
+                ? "Market Intelligence & Fresh Produce Supply" 
+                : "Market Intelligence & Fresh Produce Procurement"}
             </h1>
           </div>
           <p className="text-muted-foreground text-xs sm:text-sm">
-            Understand current government market price ranges, discover nearby registered commercial buyers, and detect surplus.
+            {isFarmerMode
+              ? "List your harvest for commercial food buyers, view live government mandi prices, and connect with regional markets."
+              : "Aggregate fresh produce from multiple regional farmers, view live government mandi prices, and generate confirmed procurement orders."}
           </p>
         </div>
 
-        {isOffline && (
-          <Badge variant="outline" className="bg-amber-50 text-amber-800 border-amber-300 dark:bg-amber-950/40 dark:text-amber-300 self-start text-xs font-semibold px-3 py-1">
-            Offline: Using Cached Market Data
-          </Badge>
-        )}
+        <div className="flex items-center gap-2 self-start sm:self-auto flex-wrap">
+          {isFarmerMode && (
+            <Button
+              onClick={() => setListProduceOpen(true)}
+              className="rounded-xl text-xs font-bold gap-1.5 shadow-xs bg-emerald-600 hover:bg-emerald-700 text-white h-9"
+            >
+              <Plus className="h-4 w-4" />
+              <span>List Fresh Produce</span>
+            </Button>
+          )}
+
+          {isOffline && (
+            <Badge variant="outline" className="bg-amber-50 text-amber-800 border-amber-300 dark:bg-amber-950/40 dark:text-amber-300 self-start text-xs font-semibold px-3 py-1">
+              Offline: Using Cached Market Data
+            </Badge>
+          )}
+        </div>
       </div>
 
-      {/* Origin Banner if arrived via Viability Scanner */}
-      {isFromScanner && (
-        <div className="bg-primary/10 border border-primary/20 text-primary rounded-2xl p-4 flex items-center justify-between text-xs shadow-xs">
-          <div className="flex items-center gap-2.5">
-            <Sparkles className="h-5 w-5 shrink-0 text-primary" />
-            <div>
-              <p className="font-bold text-foreground text-sm">
-                ✓ Pre-filled from On-Device Viability Assessment
-              </p>
-              <p className="text-muted-foreground mt-0.5">
-                Assessment ID: <span className="font-mono text-foreground font-medium">{sourceAssessmentId || "Verified"}</span> • 
-                Crop, harvest quantity, and location were automatically transferred.
-              </p>
-            </div>
-          </div>
-          <Badge variant="outline" className="text-xs bg-card border-primary/30 shrink-0 font-medium">
-            Verified Scan Handoff
-          </Badge>
-        </div>
-      )}
+      {/* Main Tab Navigation */}
+      <Tabs value={activeMainTab} onValueChange={setActiveMainTab} className="space-y-6">
+        <TabsList className="bg-muted/80 p-1 rounded-2xl border border-border/80 flex flex-wrap max-w-xl">
+          <TabsTrigger value="procurement" className="rounded-xl text-xs font-bold flex-1 gap-1.5 py-2.5">
+            {isFarmerMode ? (
+              <>
+                <Sprout className="h-4 w-4 text-emerald-600" />
+                Fresh Produce Supply
+              </>
+            ) : (
+              <>
+                <Sparkles className="h-4 w-4 text-primary" />
+                Fresh Produce Procurement
+              </>
+            )}
+          </TabsTrigger>
+          <TabsTrigger value="intelligence" className="rounded-xl text-xs font-semibold flex-1 gap-1.5 py-2.5">
+            <TrendingUp className="h-4 w-4" />
+            Government Market Prices & Mandis
+          </TabsTrigger>
+        </TabsList>
 
-      {/* Interactive Control & Filter Bar (Allows instant farmer review / refinement) */}
-      <div className="bg-card rounded-3xl border border-border/80 p-5 shadow-xs space-y-3">
-        <div className="flex items-center justify-between">
-          <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
-            <Filter className="h-3.5 w-3.5 text-primary" /> Active Crop Supply Parameters
-          </span>
-          <span className="text-[11px] text-muted-foreground">Values can be updated anytime</span>
-        </div>
+        {/* PRIMARY WORKFLOW: FARMER SUPPLY vs BUYER PROCUREMENT */}
+        <TabsContent value="procurement" className="space-y-6">
+          {isFarmerMode ? (
+            /* FARMER MODE: Dedicated Farmer Supply Workspace (No Buyer Procurement Form / Matching Controls) */
+            <FarmerSupplyWorkspace
+              user={user}
+              onOpenListModal={() => setListProduceOpen(true)}
+            />
+          ) : (
+            /* BUYER MODE: Smart Multi-Farmer Procurement Matching Engine */
+            <SmartMatchingWorkspace
+              matchType="MARKET"
+              initialCrop={crop || "Tomato"}
+              initialCategory="Vegetable"
+              initialQuantityKg={1000}
+              initialQualityGrade="Grade A — Fresh / Premium"
+              initialMaxPricePerKg={32}
+              initialDestination={farmerLocation}
+              title="SMART FRESH PRODUCE PROCUREMENT"
+              subtitle="Aggregate fresh produce from multiple farmers to fulfil buyer demand."
+            />
+          )}
+        </TabsContent>
+
+        {/* SECONDARY SECTION: GOVERNMENT MARKET PRICE INTELLIGENCE */}
+        <TabsContent value="intelligence" className="space-y-6">
+
+          {/* Origin Banner if arrived via Viability Scanner */}
+          {isFromScanner && (
+            <div className="bg-primary/10 border border-primary/20 text-primary rounded-2xl p-4 flex items-center justify-between text-xs shadow-xs">
+              <div className="flex items-center gap-2.5">
+                <Sparkles className="h-5 w-5 shrink-0 text-primary" />
+                <div>
+                  <p className="font-bold text-foreground text-sm">
+                    ✓ Pre-filled from On-Device Viability Assessment
+                  </p>
+                  <p className="text-muted-foreground mt-0.5">
+                    Assessment ID: <span className="font-mono text-foreground font-medium">{sourceAssessmentId || "Verified"}</span> • 
+                    Crop, harvest quantity, and location were automatically transferred.
+                  </p>
+                </div>
+              </div>
+              <Badge variant="outline" className="text-xs bg-card border-primary/30 shrink-0 font-medium">
+                Verified Scan Handoff
+              </Badge>
+            </div>
+          )}
+
+          {/* Interactive Control & Filter Bar (Allows instant farmer review / refinement) */}
+          <div className="bg-card rounded-3xl border border-border/80 p-5 shadow-xs space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                <Filter className="h-3.5 w-3.5 text-primary" /> Active Crop Supply Parameters
+              </span>
+              <span className="text-[11px] text-muted-foreground">Values can be updated anytime</span>
+            </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
           <div>
@@ -842,6 +918,8 @@ export default function MarketIntelligence() {
           </div>
         </div>
       </div>
+    </TabsContent>
+  </Tabs>
 
       {/* VIEW BUYER DIALOG */}
       <Dialog open={Boolean(selectedBuyerForView)} onOpenChange={(open) => !open && setSelectedBuyerForView(null)}>
@@ -985,6 +1063,12 @@ export default function MarketIntelligence() {
           )}
         </DialogContent>
       </Dialog>
+
+      {/* List Fresh Produce Modal for Farmers */}
+      <ListProduceModal
+        open={listProduceOpen}
+        onOpenChange={setListProduceOpen}
+      />
     </div>
   );
 }

@@ -498,6 +498,14 @@ export async function manageConnection(req, res, next) {
         ];
       }
 
+      // Ensure the requesting farmer user exists before creating notification
+      await query(
+        `INSERT INTO users (user_id, display_name) 
+         VALUES ($1, $2) 
+         ON CONFLICT (user_id) DO NOTHING`,
+        [requestingFarmerId, requestingFarmerName || 'Farmer']
+      );
+
       // Notify the requesting farmer that connection was accepted
       const notifId = `notif_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
       await query(

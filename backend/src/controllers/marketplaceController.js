@@ -12,6 +12,7 @@ import {
  */
 export async function getMarketplaceListings(req, res, next) {
   try {
+    const requesterId = req.headers['x-user-id'] || req.headers['X-User-Id'] || req.query.user_id;
     const { crop_type, status, creator_id, district, state, limit = 100, offset = 0 } = req.query;
 
     const conditions = [];
@@ -54,10 +55,20 @@ export async function getMarketplaceListings(req, res, next) {
 
     const result = await query(sql, values);
 
+    // Privacy Rule: Before procurement confirmation, do NOT expose personal phone numbers in marketplace discovery
+    const sanitizedRows = result.rows.map(row => {
+      const isOwner = requesterId && (row.creator_id === requesterId);
+      return {
+        ...row,
+        contact_phone: isOwner ? row.contact_phone : null,
+        phone: isOwner ? row.contact_phone : null
+      };
+    });
+
     res.status(200).json({
       status: 'success',
-      count: result.rows.length,
-      data: result.rows
+      count: sanitizedRows.length,
+      data: sanitizedRows
     });
   } catch (err) {
     next(err);
@@ -70,6 +81,8 @@ export async function getMarketplaceListings(req, res, next) {
 export async function getListingById(req, res, next) {
   try {
     const { id } = req.params;
+    const requesterId = req.headers['x-user-id'] || req.headers['X-User-Id'] || req.query.user_id;
+
     if (!id) {
       return res.status(400).json({
         status: 'error',
@@ -91,9 +104,16 @@ export async function getListingById(req, res, next) {
       });
     }
 
+    const isOwner = requesterId && (result.rows[0].creator_id === requesterId);
+    const sanitizedRow = {
+      ...result.rows[0],
+      contact_phone: isOwner ? result.rows[0].contact_phone : null,
+      phone: isOwner ? result.rows[0].contact_phone : null
+    };
+
     res.status(200).json({
       status: 'success',
-      data: result.rows[0]
+      data: sanitizedRow
     });
   } catch (err) {
     next(err);
@@ -133,7 +153,13 @@ export async function createListing(req, res, next) {
     const buyerType = body.buyer_type || null;
     const farmerName = body.farmer_name || body.farmerName || body.creator_name || body.creatorName || body.user || 'Agro Farmer';
     const contactPhone = body.contact_phone || body.phone || body.creator_phone || body.creatorPhone || null;
-    const imageUrl = body.image_url || body.image || body.selectedImage || null;
+    let imageUrl = null;
+    if (Array.isArray(body.images) && body.images.length > 0) {
+      imageUrl = JSON.stringify(body.images.slice(0, 3));
+    } else if (body.image_url !== undefined || body.image !== undefined || body.selectedImage !== undefined) {
+      const rawImg = body.image_url ?? body.image ?? body.selectedImage;
+      imageUrl = Array.isArray(rawImg) ? JSON.stringify(rawImg.slice(0, 3)) : rawImg;
+    }
 
     // Ensure user exists first
     await query(
@@ -142,6 +168,16 @@ export async function createListing(req, res, next) {
        ON CONFLICT (user_id) DO NOTHING`,
       [creatorId, farmerName, contactPhone]
     );
+
+    // Ensure source assessment exists if provided (satisfy foreign key constraint)
+    if (sourceAssessmentId) {
+      await query(
+        `INSERT INTO field_assessments (id, user_id, crop_name, condition, created_at, updated_at)
+         VALUES ($1, $2, $3, $4, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+         ON CONFLICT (id) DO NOTHING`,
+        [sourceAssessmentId, creatorId, cropType, condition]
+      );
+    }
 
     const result = await query(
       `INSERT INTO marketplace_listings (
@@ -263,9 +299,13 @@ export async function updateListing(req, res, next) {
       fields.push(`title = $${idx++}`);
       values.push(updates.title);
     }
-    if (updates.image_url !== undefined || updates.image !== undefined) {
+    if (updates.images !== undefined) {
       fields.push(`image_url = $${idx++}`);
-      values.push(updates.image_url ?? updates.image);
+      values.push(Array.isArray(updates.images) ? JSON.stringify(updates.images.slice(0, 3)) : updates.images);
+    } else if (updates.image_url !== undefined || updates.image !== undefined) {
+      fields.push(`image_url = $${idx++}`);
+      const rawImg = updates.image_url ?? updates.image;
+      values.push(Array.isArray(rawImg) ? JSON.stringify(rawImg.slice(0, 3)) : rawImg);
     }
     if (updates.matched_buyer !== undefined || updates.matchedBuyer !== undefined) {
       fields.push(`matched_buyer = $${idx++}`);
@@ -278,6 +318,14 @@ export async function updateListing(req, res, next) {
     if (updates.contact_phone !== undefined || updates.phone !== undefined) {
       fields.push(`contact_phone = $${idx++}`);
       values.push(updates.contact_phone ?? updates.phone);
+    }
+    if (updates.latitude !== undefined) {
+      fields.push(`latitude = $${idx++}`);
+      values.push(updates.latitude !== null ? Number(updates.latitude) : null);
+    }
+    if (updates.longitude !== undefined) {
+      fields.push(`longitude = $${idx++}`);
+      values.push(updates.longitude !== null ? Number(updates.longitude) : null);
     }
 
     if (fields.length === 0) {

@@ -5,13 +5,19 @@
  * with IndexedDB / localDB as an offline cache and draft layer.
  */
 
-import { localDB, KEYS } from './localDB';
-import * as db from './indexedDB';
-import { STORES } from './indexedDB';
-import { enqueueAction, ACTION_TYPES } from './syncQueue';
-import { syncManager } from './syncManager';
+import { localDB, KEYS } from './localDB.js';
+import * as db from './indexedDB.js';
+import { STORES } from './indexedDB.js';
+import { enqueueAction, ACTION_TYPES } from './syncQueue.js';
 
-const API_BASE_URL = (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_API_BASE_URL) || 'http://localhost:5000/api/v1';
+export function getApiBaseUrl() {
+  if (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_API_BASE_URL) {
+    return import.meta.env.VITE_API_BASE_URL;
+  }
+  return 'http://localhost:5000/api/v1';
+}
+
+const API_BASE_URL = getApiBaseUrl();
 
 /**
  * Standardizes backend database record into consistent frontend marketplace model
@@ -20,8 +26,17 @@ export function normalizeListing(raw) {
   if (!raw) return null;
   const isBuyerListing = raw.creator_role === 'buyer' || raw.creatorRole === 'buyer' || raw.listingType === 'buy' || Boolean(raw.buyerPhone);
 
+  const rawLat = (raw.latitude !== undefined && raw.latitude !== null && raw.latitude !== "") ? Number(raw.latitude) : null;
+  const rawLon = (raw.longitude !== undefined && raw.longitude !== null && raw.longitude !== "") ? Number(raw.longitude) : null;
+  const lat = (rawLat !== null && !isNaN(rawLat) && Number.isFinite(rawLat)) ? rawLat : null;
+  const lon = (rawLon !== null && !isNaN(rawLon) && Number.isFinite(rawLon)) ? rawLon : null;
+
+  const listingId = String(raw.id || raw.listingId || `wp_${Date.now()}`);
+  const farmerName = !isBuyerListing ? (raw.farmer_name || raw.farmerName || raw.creatorName || raw.creator_name || raw.user || 'Local Farmer') : null;
+
   return {
-    id: String(raw.id || `wp_${Date.now()}`),
+    id: listingId,
+    listingId: listingId,
     creatorId: raw.creator_id || raw.creatorId || null,
     creatorRole: raw.creator_role || raw.creatorRole || (isBuyerListing ? 'buyer' : 'farmer'),
     creatorName: raw.farmer_name || raw.farmerName || raw.creator_name || raw.creatorName || raw.user || 'User',
@@ -33,24 +48,68 @@ export function normalizeListing(raw) {
     buyerName: isBuyerListing ? (raw.farmer_name || raw.buyerName || raw.creatorName) : null,
     buyerPhone: isBuyerListing ? (raw.contact_phone || raw.buyerPhone || raw.phone) : null,
 
-    farmerName: !isBuyerListing ? (raw.farmer_name || raw.farmerName || raw.creatorName) : null,
+    farmerName: farmerName,
+    farmer_name: farmerName,
     farmerPhone: !isBuyerListing ? (raw.contact_phone || raw.farmerPhone || raw.phone) : null,
 
-    title: raw.title || `${raw.crop_type || raw.crop} Crop Waste`,
+    title: raw.title || `${raw.crop_type || raw.crop || 'Crop'} Fresh Produce`,
     crop: raw.crop_type || raw.crop,
     crop_type: raw.crop_type || raw.crop,
-    quantity_kg: Number(raw.quantity_kg !== undefined ? raw.quantity_kg : (raw.quantity !== undefined ? raw.quantity : 100)),
-    condition: raw.condition || 'damaged',
+    quantity_kg: Number(raw.quantity_kg !== undefined ? raw.quantity_kg : (raw.quantity !== undefined ? raw.quantity : (raw.availableQuantityKg !== undefined ? raw.availableQuantityKg : 0))),
+    condition: raw.condition || 'fresh',
     location: raw.location || 'Local Farm',
-    latitude: raw.latitude !== undefined ? raw.latitude : null,
-    longitude: raw.longitude !== undefined ? raw.longitude : null,
+    latitude: lat,
+    longitude: lon,
     district: raw.district || null,
     state: raw.state || null,
 
     asking_price: Number(raw.asking_price !== undefined ? raw.asking_price : (raw.price !== undefined ? raw.price : 0)),
     status: raw.status || 'listed',
-    image: raw.image_url || raw.image || null,
-    image_url: raw.image_url || raw.image || null,
+    images: (() => {
+      let imgs = [];
+      if (Array.isArray(raw.images)) {
+        imgs = raw.images.filter(Boolean);
+      } else if (typeof raw.images === 'string') {
+        try {
+          const p = JSON.parse(raw.images);
+          if (Array.isArray(p)) imgs = p.filter(Boolean);
+          else if (p) imgs = [p];
+        } catch {
+          imgs = [raw.images];
+        }
+      }
+      if (imgs.length === 0) {
+        const rawImg = raw.image_url || raw.image;
+        if (rawImg && typeof rawImg === 'string') {
+          if (rawImg.trim().startsWith('[') || rawImg.trim().startsWith('{')) {
+            try {
+              const p = JSON.parse(rawImg);
+              if (Array.isArray(p)) imgs = p.filter(Boolean);
+              else if (p) imgs = [p];
+            } catch {
+              imgs = [rawImg];
+            }
+          } else {
+            imgs = [rawImg];
+          }
+        }
+      }
+      return imgs.slice(0, 3);
+    })(),
+    image: (() => {
+      if (Array.isArray(raw.images) && raw.images.length > 0) return raw.images[0];
+      if (raw.image_url && typeof raw.image_url === 'string' && raw.image_url.startsWith('[')) {
+        try { const p = JSON.parse(raw.image_url); if (Array.isArray(p) && p.length > 0) return p[0]; } catch {}
+      }
+      return raw.image_url || raw.image || null;
+    })(),
+    image_url: (() => {
+      if (Array.isArray(raw.images) && raw.images.length > 0) return raw.images[0];
+      if (raw.image_url && typeof raw.image_url === 'string' && raw.image_url.startsWith('[')) {
+        try { const p = JSON.parse(raw.image_url); if (Array.isArray(p) && p.length > 0) return p[0]; } catch {}
+      }
+      return raw.image_url || raw.image || null;
+    })(),
     date: raw.created_at || raw.date || new Date().toISOString(),
     created_date: raw.created_at || raw.date || new Date().toISOString(),
     updated_at: raw.updated_at || new Date().toISOString(),
@@ -159,59 +218,92 @@ class MarketplaceService {
 
   /**
    * Post new produce / crop waste listing to backend + shared DB
+   * Distinguishes between network failure (offline) and HTTP error responses (400, 403, 500, etc.)
    */
   async createListing(data, currentUser) {
-    const userId = currentUser?.userId || currentUser?.id;
-    const userName = currentUser?.name || currentUser?.full_name || 'Agro Farmer';
-    const userPhone = currentUser?.phone || null;
+    const userId = data.creator_id || data.creatorId || currentUser?.userId || currentUser?.id || 'usr_farmer_ramesh_01';
+    const userName = data.farmer_name || data.farmerName || data.creatorName || data.creator_name || currentUser?.name || currentUser?.full_name || 'Agro Farmer';
+    const userPhone = data.contact_phone || data.contactPhone || data.farmerPhone || data.phone || currentUser?.phone || null;
+
+    const rawQty = data.quantity_kg !== undefined ? data.quantity_kg : data.quantity;
+    const quantityKg = Number(rawQty);
+    const rawPrice = data.asking_price !== undefined ? data.asking_price : data.price;
+    const askingPrice = Number(rawPrice) >= 0 ? Number(rawPrice) : 0;
 
     const payload = {
       id: data.id || `wp_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
       creator_id: userId,
-      creator_role: data.creatorRole || (currentUser?.activeRole === 'buyer' ? 'buyer' : 'farmer'),
-      crop_type: data.crop_type || data.crop,
-      quantity_kg: Number(data.quantity_kg || data.quantity),
-      condition: data.condition || 'damaged',
-      asking_price: Number(data.asking_price || data.price || 0),
+      creator_role: data.creator_role || data.creatorRole || (currentUser?.activeRole === 'buyer' ? 'buyer' : 'farmer'),
+      crop_type: data.crop_type || data.crop || 'Crop',
+      quantity_kg: quantityKg,
+      condition: data.condition || 'fresh',
+      asking_price: askingPrice,
       status: data.status || 'listed',
       location: data.location || 'Local Farm',
+      latitude: data.latitude !== undefined && data.latitude !== null ? Number(data.latitude) : null,
+      longitude: data.longitude !== undefined && data.longitude !== null ? Number(data.longitude) : null,
+      district: data.district || null,
+      state: data.state || null,
       farmer_name: userName,
       contact_phone: userPhone,
-      image_url: data.image || data.image_url || null,
+      images: Array.isArray(data.images) ? data.images.filter(Boolean).slice(0, 3) : (data.images ? [data.images] : (data.image || data.image_url ? [data.image || data.image_url] : [])),
+      image_url: Array.isArray(data.images) && data.images.length > 0 ? JSON.stringify(data.images.slice(0, 3)) : (data.image || data.image_url || null),
       source_assessment_id: data.sourceAssessmentId || data.source_assessment_id || null,
-      title: data.title || `${data.crop_type || data.crop} Crop Waste`
+      title: data.title || `${data.crop_type || data.crop || 'Crop'} Fresh Produce`
     };
 
+    const apiBase = getApiBaseUrl();
+    const targetUrl = `${apiBase}/marketplace/listings`;
+    const headers = {
+      'Content-Type': 'application/json'
+    };
+
+    console.log('[MarketplaceService createListing Diagnostic: Outgoing Request]', {
+      apiBase,
+      targetUrl,
+      userId,
+      headers,
+      sourceAssessmentId: payload.source_assessment_id,
+      source: data.source || 'manual',
+      crop_type: payload.crop_type,
+      quantity_kg: payload.quantity_kg,
+      condition: payload.condition,
+      location: payload.location,
+      asking_price: payload.asking_price,
+      imagePresent: Boolean(payload.image_url),
+      imageLength: payload.image_url ? payload.image_url.length : 0,
+      fetchInitiatedAt: new Date().toISOString()
+    });
+
+    let response = null;
+    let responseText = null;
+
     try {
-      const response = await fetch(`${API_BASE_URL}/marketplace/listings`, {
+      console.log('[MarketplaceService createListing] fetch() starting to:', targetUrl);
+      response = await fetch(targetUrl, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-User-Id': userId
-        },
+        headers,
         body: JSON.stringify(payload)
       });
+      console.log('[MarketplaceService createListing] fetch() resolved:', {
+        status: response.status,
+        statusText: response.statusText,
+        ok: response.ok
+      });
+    } catch (networkErr) {
+      // 1. Genuine Network / Fetch / Connection Failure
+      console.error('[MarketplaceService createListing Diagnostic: Network Error Caught]', {
+        apiBase,
+        targetUrl,
+        userId,
+        headers,
+        payload,
+        errorName: networkErr?.name,
+        errorMessage: networkErr?.message,
+        errorStack: networkErr?.stack
+      });
 
-      if (response.ok) {
-        const json = await response.json();
-        const saved = normalizeListing(json.data || payload);
-        saved.sync_status = 'synced';
-
-        // Cache in local storage
-        try {
-          await db.put(STORES.MARKETPLACE_LISTINGS, saved);
-          localDB.addItem(KEYS.WASTE, saved);
-        } catch (e) {}
-
-        return { success: true, data: saved, isOffline: false };
-      } else {
-        const errJson = await response.json().catch(() => ({ message: 'Server error' }));
-        throw new Error(errJson.message || `Server returned ${response.status}`);
-      }
-    } catch (err) {
-      console.warn('[MarketplaceService] Server unavailable during post. Saving local draft:', err.message);
-
-      // Save local draft / pending sync
+      // Save local draft / pending sync for offline recovery
       const localDraft = normalizeListing({ ...payload, sync_status: 'pending' });
       try {
         await db.put(STORES.MARKETPLACE_LISTINGS, localDraft);
@@ -228,8 +320,67 @@ class MarketplaceService {
       return {
         success: false,
         isOffline: true,
-        error: 'Unable to publish listing because the server is unavailable. Saved as a local pending draft.',
+        error: `Unable to connect to server (${networkErr.message}). Saved as a local pending draft.`,
         data: localDraft
+      };
+    }
+
+    console.log('[MarketplaceService createListing Diagnostic: Response Status]', {
+      status: response.status,
+      statusText: response.statusText,
+      ok: response.ok
+    });
+
+    // 2. HTTP Response Handled from Server
+    if (response.ok) {
+      try {
+        const json = await response.json();
+        const saved = normalizeListing(json.data || payload);
+        saved.sync_status = 'synced';
+
+        console.log('[MarketplaceService createListing Diagnostic: Success]', saved);
+
+        // Cache in local storage
+        try {
+          await db.put(STORES.MARKETPLACE_LISTINGS, saved);
+          localDB.addItem(KEYS.WASTE, saved);
+        } catch (e) {}
+
+        return { success: true, data: saved, isOffline: false };
+      } catch (parseErr) {
+        console.warn('[MarketplaceService createListing] JSON parsing fallback:', parseErr);
+        const fallbackSaved = normalizeListing(payload);
+        return { success: true, data: fallbackSaved, isOffline: false };
+      }
+    } else {
+      // 3. HTTP Server-Side Error (400, 401, 403, 422, 500)
+      let errMessage = `Server returned HTTP ${response.status}`;
+      let errData = null;
+      try {
+        responseText = await response.text();
+        errData = JSON.parse(responseText);
+        errMessage = errData.message || errData.error || errMessage;
+      } catch (e) {
+        if (responseText) errMessage = responseText;
+      }
+
+      console.error('[MarketplaceService createListing Diagnostic: HTTP Server Error]', {
+        API_BASE_URL,
+        userId,
+        status: response.status,
+        statusText: response.statusText,
+        error: errMessage,
+        responseBody: errData || responseText,
+        targetUrl,
+        payload
+      });
+
+      return {
+        success: false,
+        isOffline: false,
+        status: response.status,
+        error: `Server error (${response.status}): ${errMessage}`,
+        data: null
       };
     }
   }
@@ -239,15 +390,15 @@ class MarketplaceService {
    */
   async updateListing(id, updates, currentUser) {
     const userId = currentUser?.userId || currentUser?.id;
+    const targetUrl = `${API_BASE_URL}/marketplace/listings/${id}`;
 
     try {
-      const response = await fetch(`${API_BASE_URL}/marketplace/listings/${id}`, {
+      const response = await fetch(targetUrl, {
         method: 'PATCH',
         headers: {
-          'Content-Type': 'application/json',
-          'X-User-Id': userId
+          'Content-Type': 'application/json'
         },
-        body: JSON.stringify(updates)
+        body: JSON.stringify({ ...updates, creator_id: userId, userId })
       });
 
       if (response.ok) {
@@ -260,15 +411,14 @@ class MarketplaceService {
         } catch (e) {}
 
         return { success: true, data: updated };
-      } else if (response.status === 403) {
-        return { success: false, error: 'You are not authorized to edit this listing' };
       } else {
-        const errJson = await response.json().catch(() => ({ message: 'Server error' }));
-        throw new Error(errJson.message || `Server returned ${response.status}`);
+        const errJson = await response.json().catch(() => ({ message: `HTTP ${response.status}` }));
+        console.error('[MarketplaceService updateListing HTTP Error]', { status: response.status, error: errJson });
+        return { success: false, error: errJson.message || `Unable to update listing (HTTP ${response.status})` };
       }
     } catch (err) {
-      console.warn('[MarketplaceService] Update failed on backend:', err.message);
-      return { success: false, error: err.message };
+      console.error('[MarketplaceService updateListing Network Error]', { error: err, apiUrl: targetUrl, userId });
+      return { success: false, error: `Network error: ${err.message}` };
     }
   }
 
@@ -277,13 +427,11 @@ class MarketplaceService {
    */
   async deleteListing(id, currentUser) {
     const userId = currentUser?.userId || currentUser?.id;
+    const targetUrl = `${API_BASE_URL}/marketplace/listings/${id}?userId=${encodeURIComponent(userId || '')}`;
 
     try {
-      const response = await fetch(`${API_BASE_URL}/marketplace/listings/${id}`, {
-        method: 'DELETE',
-        headers: {
-          'X-User-Id': userId
-        }
+      const response = await fetch(targetUrl, {
+        method: 'DELETE'
       });
 
       if (response.ok) {
@@ -293,15 +441,14 @@ class MarketplaceService {
         } catch (e) {}
 
         return { success: true };
-      } else if (response.status === 403) {
-        return { success: false, error: 'You are not authorized to remove this listing' };
       } else {
-        const errJson = await response.json().catch(() => ({ message: 'Server error' }));
-        throw new Error(errJson.message || `Server returned ${response.status}`);
+        const errJson = await response.json().catch(() => ({ message: `HTTP ${response.status}` }));
+        console.error('[MarketplaceService deleteListing HTTP Error]', { status: response.status, error: errJson });
+        return { success: false, error: errJson.message || `Unable to delete listing (HTTP ${response.status})` };
       }
     } catch (err) {
-      console.warn('[MarketplaceService] Delete failed on backend:', err.message);
-      return { success: false, error: err.message };
+      console.error('[MarketplaceService deleteListing Network Error]', { error: err, apiUrl: targetUrl, userId });
+      return { success: false, error: `Network error: ${err.message}` };
     }
   }
 }

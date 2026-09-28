@@ -25,6 +25,8 @@ import { useLanguage } from "@/i18n";
 import { getAssessmentHandoff, consumeAssessmentHandoff } from "@/services/assessmentHandoffService";
 import { marketplaceService, normalizeListing } from "@/services/marketplaceService";
 import { realtimeSocketClient } from "@/services/realtimeSocketClient";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import SmartMatchingWorkspace from "@/components/matching/SmartMatchingWorkspace";
 
 const DEFAULT_WASTE_LISTINGS = [
   {
@@ -599,6 +601,7 @@ export default function WasteMarket() {
   const [uploadingImage, setUploadingImage] = useState(false);
   const [scannerHandoff, setScannerHandoff] = useState(null);
   const [feedbackNotice, setFeedbackNotice] = useState(null);
+  const [activeTab, setActiveTab] = useState("feed");
   const [form, setForm] = useState({
     crop_type: "", quantity_kg: "", condition: "slightly_damaged",
     location: "", asking_price: "", sourceAssessmentId: null, source: null
@@ -608,12 +611,14 @@ export default function WasteMarket() {
   useEffect(() => {
     const handoff = getAssessmentHandoff("urban-waste-matcher");
     if (handoff) {
+      const handoffQty = handoff.quantity?.value ? String(handoff.quantity.value) : "100";
+      const handoffPrice = handoff.askingPrice ? String(handoff.askingPrice) : "";
       setForm({
         crop_type: handoff.crop || "",
-        quantity_kg: handoff.quantity?.value ? String(handoff.quantity.value) : "",
+        quantity_kg: handoffQty,
         condition: handoff.mappedCondition || "slightly_damaged",
         location: handoff.readableLocation || "",
-        asking_price: handoff.askingPrice ? String(handoff.askingPrice) : "",
+        asking_price: handoffPrice,
         sourceAssessmentId: handoff.assessmentId || null,
         source: "viability-scanner"
       });
@@ -756,21 +761,49 @@ export default function WasteMarket() {
       return;
     }
 
+    const parsedQty = Number(form.quantity_kg);
+    const quantityKg = (!isNaN(parsedQty) && parsedQty >= 0.1) ? parsedQty : 100;
+    const parsedPrice = Number(form.asking_price);
+    const askingPrice = (!isNaN(parsedPrice) && parsedPrice >= 0) ? parsedPrice : 0;
+
     const newPost = {
       id: `wp_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
       creatorRole: isBuyerMode ? "buyer" : "farmer",
-      crop_type: form.crop_type,
-      quantity_kg: Number(form.quantity_kg),
-      condition: form.condition,
-      location: form.location,
-      asking_price: Number(form.asking_price) || 0,
+      crop_type: form.crop_type || "Crop Waste",
+      quantity_kg: quantityKg,
+      condition: form.condition || "slightly_damaged",
+      location: form.location || "Local Farm",
+      asking_price: askingPrice,
       image: base64String,
       sourceAssessmentId: form.sourceAssessmentId || null,
       source: form.source || "manual",
-      title: `${form.crop_type} Crop Waste`
+      title: `${form.crop_type || 'Crop'} Crop Waste`
     };
 
+    console.log('[WasteMarket handleSubmit: Pre-Flight Diagnostic]', {
+      apiUrl: import.meta.env?.VITE_API_BASE_URL || 'http://localhost:5000/api/v1',
+      userId: user?.userId || user?.id,
+      sourceAssessmentId: newPost.sourceAssessmentId,
+      source: newPost.source,
+      crop_type: newPost.crop_type,
+      quantity_kg: newPost.quantity_kg,
+      condition: newPost.condition,
+      location: newPost.location,
+      asking_price: newPost.asking_price,
+      imagePresent: Boolean(newPost.image),
+      imageLength: newPost.image ? newPost.image.length : 0
+    });
+
     const res = await marketplaceService.createListing(newPost, user);
+
+    console.log('[WasteMarket handleSubmit: Post-Flight Diagnostic]', {
+      res,
+      success: res?.success,
+      isOffline: res?.isOffline,
+      status: res?.status,
+      error: res?.error,
+      data: res?.data
+    });
 
     if (res.success) {
       setDialogOpen(false);
@@ -786,7 +819,7 @@ export default function WasteMarket() {
       showFeedback("Listing published successfully to shared marketplace!", "success");
     } else {
       if (res.isOffline) {
-        alert(res.error || "Unable to publish listing because the server is unavailable.");
+        alert(res.error || "Unable to connect to server. Listing saved as local draft.");
         setDialogOpen(false);
         setEditingListingId(null);
         setImageFile(null);
@@ -796,10 +829,11 @@ export default function WasteMarket() {
           setListings(prev => [res.data, ...prev]);
         }
       } else {
-        alert(res.error || "Unable to publish listing. Please try again.");
+        alert(res.error || "Unable to publish listing. Please check input and try again.");
       }
     }
   }
+
 
   function showFeedback(message, type = "success") {
     setFeedbackNotice({ message, type });
@@ -854,39 +888,66 @@ export default function WasteMarket() {
         </div>
       )}
 
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <div className="flex items-center gap-2.5 mb-1 flex-wrap">
-            <ShoppingCart className="h-5 w-5 text-primary" />
-            <h1 className="text-2xl sm:text-3xl font-bold text-foreground tracking-tight">{t("wasteMarket.title")}</h1>
-            <ConnectionStatusBadge />
+      {/* Main Tabs Navigation */}
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
+        <TabsList className="bg-muted/80 p-1 rounded-2xl border border-border/80 flex flex-wrap max-w-xl">
+          <TabsTrigger value="feed" className="rounded-xl text-xs font-semibold flex-1 gap-1.5 py-2">
+            <ShoppingCart className="h-3.5 w-3.5" />
+            Marketplace & Off-Take Feed
+          </TabsTrigger>
+          <TabsTrigger value="smart-matching" className="rounded-xl text-xs font-semibold flex-1 gap-1.5 py-2">
+            <Sparkles className="h-3.5 w-3.5 text-primary" />
+            Smart Residue Consolidation
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="smart-matching" className="space-y-6">
+          <SmartMatchingWorkspace
+            matchType="WASTE"
+            initialCrop="Paddy Straw"
+            initialQuantityTonnes={20}
+            initialQualityGrade="Dry Baled Biomass"
+            title="Urban Waste & Biomass Consolidation Engine"
+            subtitle="Multi-farmer agricultural residue aggregation for industrial bio-energy, paper mills, and briquette manufacturing facilities."
+          />
+        </TabsContent>
+
+        <TabsContent value="feed" className="space-y-6">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div>
+              <div className="flex items-center gap-2.5 mb-1 flex-wrap">
+                <ShoppingCart className="h-5 w-5 text-primary" />
+                <h1 className="text-2xl sm:text-3xl font-bold text-foreground tracking-tight">{t("wasteMarket.title")}</h1>
+                <ConnectionStatusBadge />
+              </div>
+              <p className="text-muted-foreground text-sm">
+                {userIsActiveBuyer 
+                  ? (t("wasteMarket.buyerSubtitle") || "Post off-take requirements and connect directly with verified local farmers") 
+                  : (t("wasteMarket.subtitle") || "Sell damaged crops directly to verified commercial buyers, food processors & hotels")}
+              </p>
+            </div>
+
+            <PostCreationDialog
+              dialogOpen={dialogOpen} setDialogOpen={handleDialogOpenChange}
+              handleSubmit={handleSubmit} form={form} setForm={setForm}
+              imageFile={imageFile} setImageFile={setImageFile} uploadingImage={uploadingImage}
+              scannerHandoff={scannerHandoff} isEditing={Boolean(editingListingId)}
+            />
           </div>
-          <p className="text-muted-foreground text-sm">
-            {userIsActiveBuyer 
-              ? (t("wasteMarket.buyerSubtitle") || "Post off-take requirements and connect directly with verified local farmers") 
-              : (t("wasteMarket.subtitle") || "Sell damaged crops directly to verified commercial buyers, food processors & hotels")}
-          </p>
-        </div>
 
-        <PostCreationDialog
-          dialogOpen={dialogOpen} setDialogOpen={handleDialogOpenChange}
-          handleSubmit={handleSubmit} form={form} setForm={setForm}
-          imageFile={imageFile} setImageFile={setImageFile} uploadingImage={uploadingImage}
-          scannerHandoff={scannerHandoff} isEditing={Boolean(editingListingId)}
-        />
-      </div>
+          <ListingsFeed
+            loading={loading} listings={listings}
+            handleDelete={handleDelete} handleView={handleView} handleEdit={handleEdit}
+            statusColors={statusColors}
+          />
 
-      <ListingsFeed
-        loading={loading} listings={listings}
-        handleDelete={handleDelete} handleView={handleView} handleEdit={handleEdit}
-        statusColors={statusColors}
-      />
-
-      <ViewListingDialog
-        open={viewDialogOpen}
-        onOpenChange={setViewDialogOpen}
-        item={viewingItem}
-      />
+          <ViewListingDialog
+            open={viewDialogOpen}
+            onOpenChange={setViewDialogOpen}
+            item={viewingItem}
+          />
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }

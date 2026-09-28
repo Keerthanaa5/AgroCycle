@@ -338,7 +338,22 @@ export function broadcastAgroConnectDeleted(payload) {
   io.emit('agroconnect:deleted', typeof payload === 'object' ? payload : { id: payload });
 }
 
+export function broadcastProcurementOrderCreated(order) {
+  if (!io) return;
+  console.log(`[Socket.IO] Broadcasting procurement:created (${order.order_id || order.id})`);
+  io.emit('procurement:created', order);
+  io.emit('procurement:order_created', order);
+}
+
+export function broadcastProcurementOrderUpdated(order) {
+  if (!io) return;
+  console.log(`[Socket.IO] Broadcasting procurement:updated (${order.order_id || order.id})`);
+  io.emit('procurement:updated', order);
+  io.emit('procurement:order_updated', order);
+}
+
 export function getIO() {
   return io;
 }
+
 

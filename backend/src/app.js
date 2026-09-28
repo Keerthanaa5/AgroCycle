@@ -19,7 +19,7 @@ import claimRoutes from './routes/claimRoutes.js';
 import agroconnectRoutes from './routes/agroconnectRoutes.js';
 import notificationRoutes from './routes/notificationRoutes.js';
 import syncRoutes from './routes/syncRoutes.js';
-import logisticsRoutes from './routes/logisticsRoutes.js';
+import procurementRoutes from './routes/procurementRoutes.js';
 
 const app = express();
 
@@ -52,7 +52,7 @@ const corsOptions = {
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'X-Idempotency-Key']
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'X-Idempotency-Key', 'X-User-Id', 'x-user-id']
 };
 app.use(cors(corsOptions));
 
@@ -77,7 +77,7 @@ apiRouter.use(claimRoutes);
 apiRouter.use(agroconnectRoutes);
 apiRouter.use(notificationRoutes);
 apiRouter.use(syncRoutes);
-apiRouter.use(logisticsRoutes);
+apiRouter.use(procurementRoutes);
 
 app.use('/api/v1', apiRouter);
 app.use('/api', apiRouter);

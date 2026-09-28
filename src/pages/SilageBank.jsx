@@ -23,6 +23,9 @@ import { storageService } from "@/services/storageService";
 import { enqueueAction, ACTION_TYPES } from "@/services/syncQueue";
 import { syncManager } from "@/services/syncManager";
 import { useLanguage } from "@/i18n";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { Sparkles, Bot } from "lucide-react";
+import SmartMatchingWorkspace from "@/components/matching/SmartMatchingWorkspace";
 
 // Sample prototype listings clearly marked as demonstration records
 const DEFAULT_CENTERS = [
@@ -422,6 +425,8 @@ export default function SilageBank() {
     cancelled: { label: t("silageBank.orderStatus.cancelled") || "Cancelled", color: "bg-stone-100 text-stone-700 border-stone-200 dark:bg-stone-900/40 dark:text-stone-300", icon: AlertCircle }
   };
 
+  const [activeTab, setActiveTab] = useState("facilities");
+
   const isCurrentBuyer = isActiveBuyer(user);
   const isCurrentFarmer = isActiveFarmer(user);
 
@@ -445,9 +450,34 @@ export default function SilageBank() {
         {isCurrentBuyer && <BuyerAddCenter loadCenters={loadCenters} />}
       </div>
 
-      {/* BUYER INCOMING ORDERS (If operating as Buyer) */}
-      {isCurrentBuyer && (
-        <div className="bg-card rounded-3xl border border-border/80 p-5 sm:p-6 space-y-4 shadow-xs">
+      {/* Main Tabs Navigation */}
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
+        <TabsList className="bg-muted/80 p-1 rounded-2xl border border-border/80 flex flex-wrap max-w-xl">
+          <TabsTrigger value="facilities" className="rounded-xl text-xs font-semibold flex-1 gap-1.5 py-2">
+            <Warehouse className="h-3.5 w-3.5" />
+            Processing Centers & Network
+          </TabsTrigger>
+          <TabsTrigger value="smart-matching" className="rounded-xl text-xs font-semibold flex-1 gap-1.5 py-2">
+            <Sparkles className="h-3.5 w-3.5 text-primary" />
+            Smart Feed Sourcing Engine
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="smart-matching" className="space-y-6">
+          <SmartMatchingWorkspace
+            matchType="SILAGE"
+            initialCrop="Maize Stover"
+            initialQuantityTonnes={15}
+            initialQualityGrade="High Sugar Fodder"
+            title="Silage Bank Smart Multi-Farmer Feed Matcher"
+            subtitle="Multi-farmer fodder pooling for silage hubs & dairy plants. Automatically enforces strict safety filtering by disqualifying moldy, spoiled, or contaminated feed lots."
+          />
+        </TabsContent>
+
+        <TabsContent value="facilities" className="space-y-6">
+          {/* BUYER INCOMING ORDERS (If operating as Buyer) */}
+          {isCurrentBuyer && (
+            <div className="bg-card rounded-3xl border border-border/80 p-5 sm:p-6 space-y-4 shadow-xs">
           <div className="flex items-center justify-between flex-wrap gap-2">
             <div>
               <h2 className="font-bold text-base sm:text-lg text-foreground flex items-center gap-2">
@@ -874,6 +904,8 @@ export default function SilageBank() {
           )}
         </div>
       )}
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }

@@ -462,7 +462,7 @@ export default function AgroConnect() {
     const apiBase = (typeof import.meta !== 'undefined' && import.meta.env?.VITE_API_BASE_URL) || 'http://localhost:5000/api/v1';
 
     try {
-      const response = await fetch(`${apiBase}/agroconnect?limit=100`, { cache: 'no-store' });
+      const response = await fetch(`${apiBase}/agroconnect/posts?limit=100`, { cache: 'no-store' });
       if (response.ok) {
         const json = await response.json();
         if (Array.isArray(json.data)) {
@@ -538,9 +538,13 @@ export default function AgroConnect() {
 
     const newPost = {
       id: `ap_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+      creator_id: currentUserId,
       creatorId: currentUserId,
+      creator_role: user.activeRole || user.roles?.[0] || "farmer",
       creatorRole: user.activeRole || user.roles?.[0] || "farmer",
+      creator_name: user.name || user.full_name || "Community Farmer",
       creatorName: user.name || user.full_name || "Community Farmer",
+      creator_phone: user.phone || null,
       creatorPhone: user.phone || null,
       creatorVerificationStatus: user.verificationStatus || "verified",
       title: postTitle,
@@ -549,8 +553,8 @@ export default function AgroConnect() {
       quantity: form.quantity_kg ? Number(form.quantity_kg) : null,
       quantity_kg: form.quantity_kg ? Number(form.quantity_kg) : null,
       location: form.location || "Local Area",
-      user: user.name || user.full_name || "Community Farmer",
       farmer_name: user.name || user.full_name || "Community Farmer",
+      contact_phone: user.phone || null,
       phone: user.phone || null,
       date: new Date().toISOString(),
       condition: form.condition || null,
@@ -558,6 +562,7 @@ export default function AgroConnect() {
       topic: form.topic || null,
       resource_needed: form.resource_needed || null,
       description: form.description || postTitle,
+      image_url: base64String,
       image: base64String,
       status: "available",
       sync_status: "synced",
@@ -566,22 +571,25 @@ export default function AgroConnect() {
     };
 
     const apiBase = (typeof import.meta !== 'undefined' && import.meta.env?.VITE_API_BASE_URL) || 'http://localhost:5000/api/v1';
+    const targetUrl = `${apiBase}/agroconnect/posts`;
+
+    console.log('[AgroConnect handleSubmit: Outgoing Request]', {
+      apiBase,
+      targetUrl,
+      userId: currentUserId,
+      newPost
+    });
+
+    let response = null;
 
     try {
-      const response = await fetch(`${apiBase}/agroconnect`, {
+      response = await fetch(targetUrl, {
         method: "POST",
-        headers: { "Content-Type": "application/json", "X-User-Id": currentUserId },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(newPost)
       });
-      if (response.ok) {
-        const json = await response.json();
-        const saved = normalizeAgroPost(json.data || newPost);
-        localDB.addItem(KEYS.AGRO, saved);
-        setPosts(prev => [saved, ...prev.filter(p => String(p.id) !== String(saved.id))]);
-      } else {
-        throw new Error("Server rejected post");
-      }
-    } catch (e) {
+    } catch (networkErr) {
+      console.warn('[AgroConnect handleSubmit: Network Error Caught]', networkErr);
       newPost.sync_status = "pending";
       localDB.addItem(KEYS.AGRO, newPost);
       enqueueAction({
@@ -592,6 +600,29 @@ export default function AgroConnect() {
         payload: newPost
       });
       setPosts(prev => [newPost, ...prev]);
+
+      setDialogOpen(false);
+      setImageFile(null);
+      setForm({
+        title: "", crop_type: "", quantity_kg: "", condition: "fresh",
+        location: "", post_type: "offering_waste", topic: "", resource_needed: "", description: ""
+      });
+      return;
+    }
+
+    if (response.ok) {
+      const json = await response.json();
+      const saved = normalizeAgroPost(json.data || newPost);
+      saved.sync_status = "synced";
+      localDB.addItem(KEYS.AGRO, saved);
+      setPosts(prev => [saved, ...prev.filter(p => String(p.id) !== String(saved.id))]);
+    } else {
+      let errMsg = `Server returned HTTP ${response.status}`;
+      try {
+        const errJson = await response.json();
+        errMsg = errJson.message || errMsg;
+      } catch (e) {}
+      alert(`Unable to publish post: ${errMsg}`);
     }
 
     setDialogOpen(false);

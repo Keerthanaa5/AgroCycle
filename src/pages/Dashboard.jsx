@@ -12,10 +12,11 @@ import {
 import { 
   Users, ShoppingCart, Leaf, ScanLine, Warehouse, 
   FileCheck, Sprout, Bot, TrendingUp, Recycle, CircleDollarSign, Award,
-  Building2, Briefcase, ArrowRight, UserCheck, ArrowLeftRight, CheckCircle2, Sparkles, Truck
+  Building2, Briefcase, ArrowRight, UserCheck, ArrowLeftRight, CheckCircle2, Sparkles, Truck, Plus
 } from "lucide-react";
 import StatCard from "../components/dashboard/StatCard";
 import QuickAction from "../components/dashboard/QuickAction";
+import ListProduceModal from "@/components/matching/ListProduceModal";
 import { motion } from "framer-motion";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -33,24 +34,24 @@ export default function Dashboard() {
   } = useAuth();
   const { t } = useLanguage();
   const [stats, setStats] = useState({ posts: 0, matches: 0, carbon: 0, claims: 0 });
+  const [listProduceOpen, setListProduceOpen] = useState(false);
 
   const roleTitle = isActiveBuyer ? t("common.buyerMode") : t("common.farmerMode");
   const userName = user?.name || user?.full_name || (isActiveBuyer ? t("common.buyer") : t("common.farmer"));
   const completeness = getProfileCompleteness(user);
 
   const farmerQuickActions = [
+    { icon: Plus, label: "List Fresh Produce", description: "Publish harvest for direct supermarket & food processor procurement", onClick: () => setListProduceOpen(true), color: "green" },
     { icon: ScanLine, label: t("navigation.viabilityScanner"), description: t("dashboard.quickActions.scanCropDesc"), path: "/viability-scanner", color: "blue" },
-    { icon: Truck, label: t("navigation.smartLogistics") || "Smart Logistics", description: "Consolidate multi-farmer loads, optimize routes & reduce transport cost", path: "/smart-logistics", color: "purple" },
     { icon: ShoppingCart, label: t("navigation.wasteMarket"), description: t("dashboard.quickActions.marketWasteDesc"), path: "/waste-market", color: "amber" },
     { icon: FileCheck, label: t("navigation.claimRocket"), description: t("dashboard.quickActions.prepareClaimDesc"), path: "/claim-rocket", color: "rose" },
     { icon: Users, label: t("navigation.agroConnect"), description: t("dashboard.quickActions.intercropDesc"), path: "/agro-connect", color: "primary" },
-    { icon: Warehouse, label: t("navigation.silageBank"), description: t("dashboard.quickActions.bookSilageDesc"), path: "/silage-bank", color: "green" },
+    { icon: Warehouse, label: t("navigation.silageBank"), description: t("dashboard.quickActions.bookSilageDesc"), path: "/silage-bank", color: "teal" },
     { icon: Leaf, label: t("navigation.carbonCash"), description: t("dashboard.quickActions.earnCarbonDesc"), path: "/carbon-cash", color: "teal" },
     { icon: Bot, label: t("navigation.aiAssistant"), description: t("aiAssistant.subtitle"), path: "/ai-assistant", color: "secondary" },
   ];
 
   const buyerQuickActions = [
-    { icon: Truck, label: t("navigation.smartLogistics") || "Smart Logistics", description: "Plan multi-farmer truckloads, aggregate harvest & track deliveries", path: "/smart-logistics", color: "purple" },
     { icon: ShoppingCart, label: t("navigation.wasteMarket"), description: t("wasteMarket.subtitle"), path: "/waste-market", color: "amber" },
     { icon: Warehouse, label: t("navigation.silageBank"), description: t("silageBank.subtitle"), path: "/silage-bank", color: "green" },
     { icon: Leaf, label: t("navigation.carbonCash"), description: t("carbonCash.subtitle"), path: "/carbon-cash", color: "teal" },
@@ -232,6 +233,12 @@ export default function Dashboard() {
           ))}
         </div>
       </div>
+
+      {/* List Produce Modal */}
+      <ListProduceModal
+        open={listProduceOpen}
+        onOpenChange={setListProduceOpen}
+      />
     </div>
   );
 }

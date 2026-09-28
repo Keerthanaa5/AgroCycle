@@ -121,6 +121,15 @@ export async function syncEntityAction(req, res, next) {
       const condition = payload.condition || 'damaged';
       const sourceAssessmentId = payload.source_assessment_id || payload.sourceAssessmentId || payload.assessmentId || null;
 
+      if (sourceAssessmentId) {
+        await query(
+          `INSERT INTO field_assessments (id, user_id, crop_name, condition, created_at, updated_at)
+           VALUES ($1, $2, $3, $4, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+           ON CONFLICT (id) DO NOTHING`,
+          [sourceAssessmentId, userId, cropType, condition]
+        );
+      }
+
       await query(
         `INSERT INTO marketplace_listings (
           id, creator_id, creator_role, source_assessment_id, title, crop_type,
